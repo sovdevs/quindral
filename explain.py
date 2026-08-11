@@ -19,15 +19,29 @@ CRITERION_PHRASING = {
     "latency": "response speed",
 }
 
+RELAXED_FILTER_PHRASING = {
+    "min_context": "the context-length requirement",
+    "capability": "the capability requirement",
+    "eu_only": "the EU-only filter",
+}
+
 
 def explain(trace: dict, eu_only: bool = False) -> str:
     """Return a one-line human-readable explanation for a router trace."""
+    route_desc = ROUTE_PHRASING.get(trace["classified_as"], "your request")
+
     if trace["chosen"] is None:
-        return f"No model met your requirements for this {ROUTE_PHRASING.get(trace['classified_as'], 'task')}."
+        return f"No model met your requirements for {route_desc}, even after relaxing every filter — try loosening your constraints."
 
     chosen = get(trace["chosen"])
-    route_desc = ROUTE_PHRASING.get(trace["classified_as"], "your request")
     criterion_desc = CRITERION_PHRASING.get(trace["binding_criterion"], trace["binding_criterion"])
+
+    if trace.get("relaxed_filters"):
+        dropped = ", ".join(RELAXED_FILTER_PHRASING.get(f, f) for f in trace["relaxed_filters"])
+        return (
+            f"No model matched all your filters for {route_desc}, so we relaxed {dropped} "
+            f"and suggest {chosen.name} as the closest match, optimizing for {criterion_desc}."
+        )
 
     parts = [f"Routed to {chosen.name} because this looked like {route_desc}"]
     parts.append(f"optimizing primarily for {criterion_desc}")
@@ -55,9 +69,10 @@ def _demo():
     eu_text = explain(eu_result, eu_only=True)
     assert "EU-only filter" in eu_text
 
-    no_match = route("summarize this huge document", min_context=99999999)
-    no_match_text = explain(no_match)
-    assert "No model met" in no_match_text
+    fallback = route("describe what's happening in this photo", eu_only=True)
+    fallback_text = explain(fallback, eu_only=True)
+    assert "relaxed" in fallback_text
+    assert fallback["chosen"] in fallback_text
 
     print("explain self-check: all cases passed")
 

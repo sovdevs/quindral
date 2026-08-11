@@ -16,10 +16,19 @@ CACHE_PATH = Path(__file__).parent / "openrouter_cache.json"
 # our registry name -> OpenRouter model id
 OPENROUTER_IDS = {
     "mistral-small": "mistralai/mistral-small-3.2-24b-instruct",
-    "llama-3-8b": "meta-llama/llama-3.1-8b-instruct",
+    "codestral": "mistralai/codestral-2508",
+    "mistral-large": "mistralai/mistral-large-2512",
+    "llama-3.1-8b": "meta-llama/llama-3.1-8b-instruct",
+    "llama-3.3-70b": "meta-llama/llama-3.3-70b-instruct",
     "qwen-2.5-coder": "qwen/qwen-2.5-coder-32b-instruct",
     "gpt-4o-mini": "openai/gpt-4o-mini",
-    "gpt-4-turbo": "openai/gpt-4-turbo",
+    "gpt-4o": "openai/gpt-4o",
+    "gpt-5.4-mini": "openai/gpt-5.4-mini",
+    "gpt-5.4": "openai/gpt-5.4",
+    "claude-haiku-4.5": "anthropic/claude-haiku-4.5",
+    "claude-sonnet-4.5": "anthropic/claude-sonnet-4.5",
+    "gemini-2.5-flash": "google/gemini-2.5-flash",
+    "kimi-k2": "moonshotai/kimi-k2-0905",
 }
 
 

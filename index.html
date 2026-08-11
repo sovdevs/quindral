@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Quindral</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --forest: #1f3d2e;
+    --river: #16324f;
+    --bg: #f6f7f4;
+    --card: #ffffff;
+    --text: #1a1f1c;
+    --muted: #5c6b62;
+    --accent: #2f6b4f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 3rem 1.5rem 2rem;
+    text-align: center;
+    background: linear-gradient(135deg, var(--river), var(--forest));
+    color: #fff;
+  }
+  header h1 { margin: 0 0 0.4rem; font-size: 2rem; letter-spacing: -0.02em; }
+  header p { margin: 0; opacity: 0.85; font-size: 1rem; }
+
+  main {
+    max-width: 720px;
+    margin: -2rem auto 3rem;
+    padding: 0 1.5rem;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 14px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    padding: 1.75rem;
+    margin-bottom: 1.5rem;
+  }
+  select {
+    width: 100%;
+    padding: 0.8rem;
+    border-radius: 8px;
+    border: 1px solid #d7ddd5;
+    font-size: 1rem;
+    font-family: inherit;
+    background: #fff;
+    color: var(--text);
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin: 1.2rem 0;
+  }
+  .slider-group { flex: 1; min-width: 140px; }
+  .slider-group label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 0.3rem;
+  }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 0.75rem 1.6rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    margin-top: 0.5rem;
+  }
+  button:hover { opacity: 0.92; }
+  button:disabled { opacity: 0.5; cursor: default; }
+
+  .result { display: none; }
+  .chosen-model {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--forest);
+  }
+  .explanation { color: var(--muted); margin: 0.6rem 0 1.2rem; line-height: 1.5; }
+  .trace-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 1rem 0 0.4rem;
+  }
+  .pill-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .pill {
+    background: #eaf1ec;
+    color: var(--forest);
+    border-radius: 999px;
+    padding: 0.25rem 0.7rem;
+    font-size: 0.85rem;
+  }
+  .excluded-item {
+    font-size: 0.85rem;
+    color: var(--muted);
+    padding: 0.3rem 0;
+    border-bottom: 1px solid #f0f1ee;
+  }
+  .excluded-item b { color: var(--text); }
+  .error { color: #a33; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Quindral</h1>
+  <p>Transparent multi-criteria LLM routing</p>
+</header>
+
+<main>
+  <div class="card">
+    <select id="query">
+      <option value="write a python function to reverse a linked list">Code — reverse a linked list (Python)</option>
+      <option value="fix this bug in my javascript code">Code — fix a JavaScript bug</option>
+      <option value="describe what's happening in this photo">Vision — describe a photo</option>
+      <option value="what is the capital of spain?">Simple — capital of Spain</option>
+      <option value="what time is it in tokyo">Simple — time in Tokyo</option>
+      <option value="prove that there are infinitely many primes">Reasoning — prove infinitude of primes</option>
+      <option value="plan a strategy considering multiple tradeoffs">Reasoning — multi-step strategy planning</option>
+      <option value="summarize this entire 300-page report and extract key points">Long context — summarize a long report</option>
+      <option value="translate this book into German">Edge case — translate a book (no matching route)</option>
+    </select>
+
+    <div class="controls">
+      <div class="slider-group">
+        <label>Cost <span id="costVal">0.6</span></label>
+        <input type="range" id="cost" min="0" max="1" step="0.05" value="0.6">
+      </div>
+      <div class="slider-group">
+        <label>Environment <span id="envVal">0.3</span></label>
+        <input type="range" id="env" min="0" max="1" step="0.05" value="0.3">
+      </div>
+      <div class="slider-group">
+        <label>Speed <span id="latencyVal">0.1</span></label>
+        <input type="range" id="latency" min="0" max="1" step="0.05" value="0.1">
+      </div>
+    </div>
+
+    <div class="toggle-row">
+      <input type="checkbox" id="euOnly">
+      <label for="euOnly">EU-only (privacy)</label>
+    </div>
+
+    <button id="submit">Route query</button>
+  </div>
+
+  <div class="card result" id="result">
+    <div class="chosen-model" id="chosenModel"></div>
+    <p class="explanation" id="explanationText"></p>
+
+    <div class="trace-label">Eligible models</div>
+    <div class="pill-list" id="eligibleList"></div>
+
+    <div class="trace-label" id="excludedLabel">Excluded</div>
+    <div id="excludedList"></div>
+  </div>
+
+  <div class="error" id="errorText"></div>
+</main>
+
+<script>
+const sliders = ["cost", "env", "latency"];
+sliders.forEach(id => {
+  const el = document.getElementById(id);
+  const out = document.getElementById(id + "Val");
+  el.addEventListener("input", () => out.textContent = el.value);
+});
+
+document.getElementById("submit").addEventListener("click", async () => {
+  const btn = document.getElementById("submit");
+  const errorEl = document.getElementById("errorText");
+  const resultEl = document.getElementById("result");
+  errorEl.textContent = "";
+  resultEl.style.display = "none";
+  btn.disabled = true;
+  btn.textContent = "Routing…";
+
+  const weights = {};
+  sliders.forEach(id => weights[id] = parseFloat(document.getElementById(id).value));
+
+  try {
+    const res = await fetch("/route", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: document.getElementById("query").value,
+        eu_only: document.getElementById("euOnly").checked,
+        weights,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "request failed");
+
+    document.getElementById("chosenModel").textContent = data.chosen
+      ? "→ " + data.chosen
+      : "No model matched your filters";
+    document.getElementById("explanationText").textContent = data.explanation || "";
+
+    document.getElementById("eligibleList").innerHTML = (data.eligible_models || [])
+      .map(m => `<span class="pill">${m}</span>`).join("") || "<span class=\"pill\">none</span>";
+
+    const excluded = data.excluded || [];
+    document.getElementById("excludedLabel").style.display = excluded.length ? "block" : "none";
+    document.getElementById("excludedList").innerHTML = excluded
+      .map(e => `<div class="excluded-item"><b>${e.model}</b> — ${e.reason}</div>`).join("");
+
+    resultEl.style.display = "block";
+  } catch (err) {
+    errorEl.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Route query";
+  }
+});
+</script>
+</body>
+</html>

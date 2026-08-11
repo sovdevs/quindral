@@ -103,7 +103,13 @@ def classify(query: str) -> dict:
     sim_scores = _embedding_similarity_scores(query)
     boosts = _heuristic_boosts(query)
     scores = {route: sim_scores[route] + boosts[route] for route in ROUTES}
-    route = max(scores, key=scores.get)
+    # No signal for any route (all scores 0, e.g. topics we have no reference
+    # examples for like translation) -> default to "simple" rather than
+    # letting max() arbitrarily pick whichever route happens to be first.
+    if max(scores.values()) == 0.0:
+        route = "simple"
+    else:
+        route = max(scores, key=scores.get)
     return {"route": route, "confidence": round(scores[route], 3), "scores": scores}
 
 
@@ -113,6 +119,7 @@ def _demo():
         "what is the capital of spain?": "simple",
         "describe what's happening in this photo": "vision",
         "prove that the square root of 2 is irrational": "reasoning",
+        "translate this book into German": "simple",  # no matching route -> safe default, not "code"
     }
     for query, expected in cases.items():
         result = classify(query)

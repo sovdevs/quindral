@@ -49,6 +49,10 @@ def route(query: str, weights: dict = None, eu_only: bool = False, min_context: 
                 reasons.append(f"context window {m.context_window} < required {min_context}")
             excluded.append({"model": m.name, "reason": "; ".join(reasons)})
 
+    relaxed_filters = []
+    if not survivors:
+        survivors, relaxed_filters = _relax_and_retry(required_capability, eu_only, min_context)
+
     if not survivors:
         return {
             "classified_as": classification["route"],
@@ -56,33 +60,68 @@ def route(query: str, weights: dict = None, eu_only: bool = False, min_context: 
             "excluded": excluded,
             "chosen": None,
             "binding_criterion": None,
-            "error": "no candidates survive hard filters",
+            "error": "no candidates survive hard filters, even after relaxing every filter",
         }
 
-    cost_norm = _normalize(survivors, _cost)
-    env_norm = _normalize(survivors, lambda m: m.energy_wh_per_1k_tokens)
-    latency_norm = _normalize(survivors, lambda m: m.latency_ms_p50)
-
-    scored = []
-    for m in survivors:
-        score = (
-            weights.get("cost", 0) * cost_norm[m.name]
-            + weights.get("env", 0) * env_norm[m.name]
-            + weights.get("latency", 0) * latency_norm[m.name]
-        )
-        scored.append((m, score))
-    scored.sort(key=lambda pair: pair[1])  # lower normalized score = cheaper/greener/faster = better
-    chosen, _ = scored[0]
-
+    chosen = _rank(survivors, weights)[0]
     binding_criterion = max(weights, key=weights.get)
 
-    return {
+    result = {
         "classified_as": classification["route"],
         "eligible_models": [m.name for m in survivors],
         "excluded": excluded,
         "chosen": chosen.name,
         "binding_criterion": binding_criterion,
     }
+    if relaxed_filters:
+        result["relaxed_filters"] = relaxed_filters
+    return result
+
+
+def _rank(models, weights):
+    """Return models sorted best-first by weighted normalized cost/env/latency."""
+    cost_norm = _normalize(models, _cost)
+    env_norm = _normalize(models, lambda m: m.energy_wh_per_1k_tokens)
+    latency_norm = _normalize(models, lambda m: m.latency_ms_p50)
+
+    def score(m):
+        return (
+            weights.get("cost", 0) * cost_norm[m.name]
+            + weights.get("env", 0) * env_norm[m.name]
+            + weights.get("latency", 0) * latency_norm[m.name]
+        )
+
+    return sorted(models, key=score)  # lower normalized score = cheaper/greener/faster = better
+
+
+# Order to drop hard filters in when nothing survives, least-consequential first.
+# EU-only is dropped last since it's a privacy commitment, not just a preference.
+_RELAXATION_ORDER = ["min_context", "capability", "eu_only"]
+
+
+def _relax_and_retry(required_capability, eu_only, min_context):
+    """Drop hard filters one at a time (then all together) until something survives.
+
+    Returns (survivors, relaxed_filter_names). This is the "second best" fallback:
+    rather than a flat no-match, tell the user what constraint had to give.
+    """
+    active = {"capability": required_capability, "eu_only": eu_only, "min_context": min_context}
+    dropped = []
+    for filter_name in _RELAXATION_ORDER:
+        if filter_name == "capability" and required_capability is None:
+            continue
+        if filter_name == "eu_only" and not eu_only:
+            continue
+        if filter_name == "min_context" and min_context == 0:
+            continue
+        dropped.append(filter_name)
+        trial = dict(active)
+        for name in dropped:
+            trial[name] = None if name == "capability" else (False if name == "eu_only" else 0)
+        survivors = filter_by(capability=trial["capability"], eu_only=trial["eu_only"], min_context=trial["min_context"])
+        if survivors:
+            return survivors, dropped
+    return [], dropped
 
 
 def _all_models():
@@ -98,9 +137,21 @@ def _demo():
     from model_registry import get
     assert get(result_eu["chosen"]).region == "EU"
 
-    result_impossible = route("summarize this huge document", min_context=99999999)
-    assert result_impossible["chosen"] is None
-    assert result_impossible["error"]
+    # every hard filter gets relaxed in turn, so as long as the registry is
+    # non-empty there's always a "closest match" fallback rather than a dead end
+    result_extreme = route("summarize this huge document", min_context=99999999)
+    assert result_extreme["chosen"] is not None
+    assert "min_context" in result_extreme["relaxed_filters"]
+
+    # no EU-hosted model has vision capability -> must fall back
+    result_fallback = route("describe what's happening in this photo", eu_only=True)
+    assert result_fallback["chosen"] is not None
+    assert "capability" in result_fallback["relaxed_filters"]
+
+    # EU-hosted coding now exists (codestral), so this should NOT need a fallback
+    result_eu_code = route("write a python function to reverse a list", eu_only=True)
+    assert result_eu_code["chosen"] == "codestral"
+    assert "relaxed_filters" not in result_eu_code
 
     print("router self-check: all cases passed")
 

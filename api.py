@@ -1,16 +1,31 @@
 """API entrypoint: POST /route {"query": "...", "eu_only": bool, "weights": {...}}
--> routing trace + NL explanation. Stdlib http.server only, no framework dep
-installed yet — swap for FastAPI/Flask when request volume or middleware
-needs (auth, validation, docs) outgrow this. Run: python3 api.py
+-> routing trace + NL explanation. GET / serves the web UI (index.html).
+Stdlib http.server only, no framework dep installed yet — swap for
+FastAPI/Flask when request volume or middleware needs (auth, validation,
+docs) outgrow this. Run: python3 api.py --serve
 """
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 
 from router import route
 from explain import explain
 
+INDEX_HTML = Path(__file__).parent / "index.html"
+
 
 class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path != "/":
+            self._send(404, {"error": "not found"})
+            return
+        body = INDEX_HTML.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_POST(self):
         if self.path != "/route":
             self._send(404, {"error": "not found"})
