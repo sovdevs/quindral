@@ -12,16 +12,25 @@ from router import route
 from explain import explain
 
 INDEX_HTML = Path(__file__).parent / "index.html"
+LOGO_PNG = Path(__file__).parent / "logo.png"
 
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path != "/":
+        if self.path == "/":
+            self._send_file(INDEX_HTML, "text/html; charset=utf-8")
+        elif self.path == "/logo.png":
+            self._send_file(LOGO_PNG, "image/png")
+        else:
+            self._send(404, {"error": "not found"})
+
+    def _send_file(self, path: Path, content_type: str):
+        if not path.exists():
             self._send(404, {"error": "not found"})
             return
-        body = INDEX_HTML.read_bytes()
+        body = path.read_bytes()
         self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)

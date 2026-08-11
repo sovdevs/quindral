@@ -13,6 +13,10 @@
     --text: #1a1f1c;
     --muted: #5c6b62;
     --accent: #2f6b4f;
+    --sidebar: #12211a;
+    --sidebar-text: #dfe8e2;
+    --sidebar-muted: #8ba296;
+    --sidebar-hover: #1c3327;
   }
   * { box-sizing: border-box; }
   body {
@@ -20,21 +24,126 @@
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: var(--bg);
     color: var(--text);
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* --- Sidebar --- */
+  #sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--sidebar);
+    color: var(--sidebar-text);
+    display: flex;
+    flex-direction: column;
+    padding: 1.2rem 0.9rem;
+  }
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0 0.4rem 1.2rem;
+  }
+  .logo-img {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .logo-row span { font-weight: 700; font-size: 1.1rem; letter-spacing: -0.01em; }
+
+  .new-chat-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    background: transparent;
+    border: 1px solid #2c4a3a;
+    color: var(--sidebar-text);
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    margin-bottom: 1rem;
+  }
+  .new-chat-btn:hover { background: var(--sidebar-hover); }
+
+  .sidebar-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--sidebar-muted);
+    padding: 0.4rem;
+    margin-top: 0.4rem;
+  }
+  #chatList {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .chat-item {
+    padding: 0.55rem 0.6rem;
+    border-radius: 7px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--sidebar-text);
+  }
+  .chat-item:hover, .chat-item.active { background: var(--sidebar-hover); }
+  .chat-item-empty { font-size: 0.8rem; color: var(--sidebar-muted); padding: 0.5rem 0.6rem; }
+
+  .sidebar-footer {
+    border-top: 1px solid #223a2d;
+    padding-top: 0.7rem;
+    margin-top: 0.7rem;
+  }
+  .sidebar-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: var(--sidebar-text);
+    padding: 0.55rem 0.6rem;
+    border-radius: 7px;
+    font-size: 0.88rem;
+    cursor: pointer;
+    text-align: left;
+  }
+  .sidebar-nav-btn:hover, .sidebar-nav-btn.active { background: var(--sidebar-hover); }
+
+  /* --- Main content --- */
+  #content {
+    flex: 1;
+    min-width: 0;
+    background:
+      linear-gradient(180deg, rgba(6,10,8,0.82), rgba(10,16,13,0.93) 60%, var(--bg) 92%),
+      url("/logo.png") center 15% / cover no-repeat fixed;
+    min-height: 100vh;
   }
   header {
-    padding: 3rem 1.5rem 2rem;
+    padding: 2.2rem 1.5rem 1.6rem;
     text-align: center;
-    background: linear-gradient(135deg, var(--river), var(--forest));
+    background: transparent;
     color: #fff;
   }
-  header h1 { margin: 0 0 0.4rem; font-size: 2rem; letter-spacing: -0.02em; }
-  header p { margin: 0; opacity: 0.85; font-size: 1rem; }
+  header h1 { margin: 0 0 0.4rem; font-size: 1.7rem; letter-spacing: -0.02em; }
+  header p { margin: 0; opacity: 0.85; font-size: 0.95rem; }
 
   main {
     max-width: 720px;
-    margin: -2rem auto 3rem;
+    margin: -1.6rem auto 3rem;
     padding: 0 1.5rem;
   }
+  .view { display: none; }
+  .view.active { display: block; }
+
   .card {
     background: var(--card);
     border-radius: 14px;
@@ -42,7 +151,7 @@
     padding: 1.75rem;
     margin-bottom: 1.5rem;
   }
-  select {
+  select, input[type=text], input[type=password] {
     width: 100%;
     padding: 0.8rem;
     border-radius: 8px;
@@ -74,7 +183,7 @@
     font-size: 0.9rem;
     color: var(--muted);
   }
-  button {
+  button.primary {
     background: var(--accent);
     color: #fff;
     border: none;
@@ -84,15 +193,11 @@
     cursor: pointer;
     margin-top: 0.5rem;
   }
-  button:hover { opacity: 0.92; }
-  button:disabled { opacity: 0.5; cursor: default; }
+  button.primary:hover { opacity: 0.92; }
+  button.primary:disabled { opacity: 0.5; cursor: default; }
 
   .result { display: none; }
-  .chosen-model {
-    font-size: 1.3rem;
-    font-weight: 600;
-    color: var(--forest);
-  }
+  .chosen-model { font-size: 1.3rem; font-weight: 600; color: var(--forest); }
   .explanation { color: var(--muted); margin: 0.6rem 0 1.2rem; line-height: 1.5; }
   .trace-label {
     font-size: 0.75rem;
@@ -117,9 +222,50 @@
   }
   .excluded-item b { color: var(--text); }
   .error { color: #a33; }
+
+  /* --- Settings view --- */
+  .settings-title { margin: 0 0 0.3rem; font-size: 1.2rem; }
+  .settings-sub { color: var(--muted); font-size: 0.85rem; margin: 0 0 1.4rem; }
+  .key-row { margin-bottom: 1.1rem; }
+  .key-row label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+  }
+  .key-status {
+    font-size: 0.78rem;
+    margin-top: 0.3rem;
+    color: var(--muted);
+  }
+  .key-status.set { color: var(--accent); }
+  .saved-note {
+    font-size: 0.8rem;
+    color: var(--accent);
+    margin-top: 0.6rem;
+    display: none;
+  }
 </style>
 </head>
 <body>
+
+<nav id="sidebar">
+  <div class="logo-row">
+    <img class="logo-img" src="/logo.png" alt="Quindral logo">
+    <span>Quindral</span>
+  </div>
+
+  <button class="new-chat-btn" id="newChatBtn">+ New chat</button>
+
+  <div class="sidebar-label">Recent</div>
+  <div id="chatList"></div>
+
+  <div class="sidebar-footer">
+    <button class="sidebar-nav-btn" id="settingsBtn">⚙ Settings</button>
+  </div>
+</nav>
+
+<div id="content">
 
 <header>
   <h1>Quindral</h1>
@@ -127,63 +273,200 @@
 </header>
 
 <main>
-  <div class="card">
-    <select id="query">
-      <option value="write a python function to reverse a linked list">Code — reverse a linked list (Python)</option>
-      <option value="fix this bug in my javascript code">Code — fix a JavaScript bug</option>
-      <option value="describe what's happening in this photo">Vision — describe a photo</option>
-      <option value="what is the capital of spain?">Simple — capital of Spain</option>
-      <option value="what time is it in tokyo">Simple — time in Tokyo</option>
-      <option value="prove that there are infinitely many primes">Reasoning — prove infinitude of primes</option>
-      <option value="plan a strategy considering multiple tradeoffs">Reasoning — multi-step strategy planning</option>
-      <option value="summarize this entire 300-page report and extract key points">Long context — summarize a long report</option>
-      <option value="translate this book into German">Edge case — translate a book (no matching route)</option>
-    </select>
+  <!-- Chat / router view -->
+  <div class="view active" id="chatView">
+    <div class="card">
+      <select id="query">
+        <option value="write a python function to reverse a linked list">Code — reverse a linked list (Python)</option>
+        <option value="fix this bug in my javascript code">Code — fix a JavaScript bug</option>
+        <option value="describe what's happening in this photo">Vision — describe a photo</option>
+        <option value="what is the capital of spain?">Simple — capital of Spain</option>
+        <option value="what time is it in tokyo">Simple — time in Tokyo</option>
+        <option value="prove that there are infinitely many primes">Reasoning — prove infinitude of primes</option>
+        <option value="plan a strategy considering multiple tradeoffs">Reasoning — multi-step strategy planning</option>
+        <option value="summarize this entire 300-page report and extract key points">Long context — summarize a long report</option>
+        <option value="translate this book into German">Edge case — translate a book (no matching route)</option>
+      </select>
 
-    <div class="controls">
-      <div class="slider-group">
-        <label>Cost <span id="costVal">0.6</span></label>
-        <input type="range" id="cost" min="0" max="1" step="0.05" value="0.6">
+      <div class="controls">
+        <div class="slider-group">
+          <label>Cost <span id="costVal">0.6</span></label>
+          <input type="range" id="cost" min="0" max="1" step="0.05" value="0.6">
+        </div>
+        <div class="slider-group">
+          <label>Environment <span id="envVal">0.3</span></label>
+          <input type="range" id="env" min="0" max="1" step="0.05" value="0.3">
+        </div>
+        <div class="slider-group">
+          <label>Speed <span id="latencyVal">0.1</span></label>
+          <input type="range" id="latency" min="0" max="1" step="0.05" value="0.1">
+        </div>
       </div>
-      <div class="slider-group">
-        <label>Environment <span id="envVal">0.3</span></label>
-        <input type="range" id="env" min="0" max="1" step="0.05" value="0.3">
+
+      <div class="toggle-row">
+        <input type="checkbox" id="euOnly">
+        <label for="euOnly">EU-only (privacy)</label>
       </div>
-      <div class="slider-group">
-        <label>Speed <span id="latencyVal">0.1</span></label>
-        <input type="range" id="latency" min="0" max="1" step="0.05" value="0.1">
-      </div>
+
+      <button class="primary" id="submit">Route query</button>
     </div>
 
-    <div class="toggle-row">
-      <input type="checkbox" id="euOnly">
-      <label for="euOnly">EU-only (privacy)</label>
+    <div class="card result" id="result">
+      <div class="chosen-model" id="chosenModel"></div>
+      <p class="explanation" id="explanationText"></p>
+
+      <div class="trace-label">Eligible models</div>
+      <div class="pill-list" id="eligibleList"></div>
+
+      <div class="trace-label" id="excludedLabel">Excluded</div>
+      <div id="excludedList"></div>
     </div>
 
-    <button id="submit">Route query</button>
+    <div class="error" id="errorText"></div>
   </div>
 
-  <div class="card result" id="result">
-    <div class="chosen-model" id="chosenModel"></div>
-    <p class="explanation" id="explanationText"></p>
-
-    <div class="trace-label">Eligible models</div>
-    <div class="pill-list" id="eligibleList"></div>
-
-    <div class="trace-label" id="excludedLabel">Excluded</div>
-    <div id="excludedList"></div>
+  <!-- Settings / BYOK view -->
+  <div class="view" id="settingsView">
+    <div class="card">
+      <h2 class="settings-title">Settings</h2>
+      <p class="settings-sub">
+        Bring your own API keys. Keys are stored only in this browser's local storage —
+        they are never sent to the Quindral server, only used client-side when calling a
+        provider directly.
+      </p>
+      <div id="keyFields"></div>
+      <button class="primary" id="saveKeysBtn">Save keys</button>
+      <div class="saved-note" id="savedNote">Saved.</div>
+    </div>
   </div>
-
-  <div class="error" id="errorText"></div>
 </main>
 
+</div>
+
 <script>
+const PROVIDERS = [
+  { id: "openai", label: "OpenAI" },
+  { id: "anthropic", label: "Anthropic" },
+  { id: "google", label: "Google (Gemini)" },
+  { id: "mistral", label: "Mistral" },
+  { id: "moonshot", label: "Moonshot (Kimi)" },
+];
+
+const CHATS_KEY = "quindral_chats";
+const KEYS_KEY = "quindral_api_keys";
+
+// ---------- view switching ----------
+function showView(name) {
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  document.getElementById(name + "View").classList.add("active");
+  document.getElementById("settingsBtn").classList.toggle("active", name === "settings");
+}
+document.getElementById("settingsBtn").addEventListener("click", () => showView("settings"));
+document.getElementById("newChatBtn").addEventListener("click", () => {
+  showView("chat");
+  document.getElementById("result").style.display = "none";
+  document.getElementById("errorText").textContent = "";
+  setActiveChatItem(null);
+});
+
+// ---------- chat history (localStorage) ----------
+function loadChats() {
+  try { return JSON.parse(localStorage.getItem(CHATS_KEY)) || []; }
+  catch { return []; }
+}
+function saveChats(chats) {
+  localStorage.setItem(CHATS_KEY, JSON.stringify(chats.slice(0, 30)));
+}
+function setActiveChatItem(id) {
+  document.querySelectorAll(".chat-item").forEach(el => {
+    el.classList.toggle("active", el.dataset.id === String(id));
+  });
+}
+function renderChatList() {
+  const chats = loadChats();
+  const listEl = document.getElementById("chatList");
+  if (!chats.length) {
+    listEl.innerHTML = '<div class="chat-item-empty">No chats yet</div>';
+    return;
+  }
+  listEl.innerHTML = chats.map(c =>
+    `<div class="chat-item" data-id="${c.id}" title="${c.query}">${c.query}</div>`
+  ).join("");
+  listEl.querySelectorAll(".chat-item").forEach(el => {
+    el.addEventListener("click", () => {
+      const chat = chats.find(c => String(c.id) === el.dataset.id);
+      if (chat) {
+        showView("chat");
+        renderResult(chat.result);
+        setActiveChatItem(chat.id);
+      }
+    });
+  });
+}
+function addChat(query, result) {
+  const chats = loadChats();
+  chats.unshift({ id: Date.now(), query, result });
+  saveChats(chats);
+  renderChatList();
+  setActiveChatItem(chats[0].id);
+}
+
+// ---------- BYOK settings ----------
+function loadKeys() {
+  try { return JSON.parse(localStorage.getItem(KEYS_KEY)) || {}; }
+  catch { return {}; }
+}
+function renderSettings() {
+  const keys = loadKeys();
+  const container = document.getElementById("keyFields");
+  container.innerHTML = PROVIDERS.map(p => `
+    <div class="key-row">
+      <label for="key-${p.id}">${p.label} API key</label>
+      <input type="password" id="key-${p.id}" placeholder="sk-…" value="${keys[p.id] || ""}">
+      <div class="key-status ${keys[p.id] ? "set" : ""}" id="status-${p.id}">
+        ${keys[p.id] ? "Key saved in this browser" : "Not set"}
+      </div>
+    </div>
+  `).join("");
+}
+document.getElementById("saveKeysBtn").addEventListener("click", () => {
+  const keys = {};
+  PROVIDERS.forEach(p => {
+    const val = document.getElementById(`key-${p.id}`).value.trim();
+    if (val) keys[p.id] = val;
+  });
+  localStorage.setItem(KEYS_KEY, JSON.stringify(keys));
+  renderSettings();
+  const note = document.getElementById("savedNote");
+  note.style.display = "block";
+  setTimeout(() => note.style.display = "none", 2000);
+});
+
+// ---------- routing ----------
 const sliders = ["cost", "env", "latency"];
 sliders.forEach(id => {
   const el = document.getElementById(id);
   const out = document.getElementById(id + "Val");
   el.addEventListener("input", () => out.textContent = el.value);
 });
+
+function renderResult(data) {
+  const resultEl = document.getElementById("result");
+  document.getElementById("chosenModel").textContent = data.chosen
+    ? "→ " + data.chosen
+    : "No model matched your filters";
+  document.getElementById("explanationText").textContent = data.explanation || "";
+
+  document.getElementById("eligibleList").innerHTML = (data.eligible_models || [])
+    .map(m => `<span class="pill">${m}</span>`).join("") || "<span class=\"pill\">none</span>";
+
+  const excluded = data.excluded || [];
+  document.getElementById("excludedLabel").style.display = excluded.length ? "block" : "none";
+  document.getElementById("excludedList").innerHTML = excluded
+    .map(e => `<div class="excluded-item"><b>${e.model}</b> — ${e.reason}</div>`).join("");
+
+  resultEl.style.display = "block";
+}
 
 document.getElementById("submit").addEventListener("click", async () => {
   const btn = document.getElementById("submit");
@@ -196,13 +479,14 @@ document.getElementById("submit").addEventListener("click", async () => {
 
   const weights = {};
   sliders.forEach(id => weights[id] = parseFloat(document.getElementById(id).value));
+  const query = document.getElementById("query").value;
 
   try {
     const res = await fetch("/route", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        query: document.getElementById("query").value,
+        query,
         eu_only: document.getElementById("euOnly").checked,
         weights,
       }),
@@ -210,20 +494,8 @@ document.getElementById("submit").addEventListener("click", async () => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "request failed");
 
-    document.getElementById("chosenModel").textContent = data.chosen
-      ? "→ " + data.chosen
-      : "No model matched your filters";
-    document.getElementById("explanationText").textContent = data.explanation || "";
-
-    document.getElementById("eligibleList").innerHTML = (data.eligible_models || [])
-      .map(m => `<span class="pill">${m}</span>`).join("") || "<span class=\"pill\">none</span>";
-
-    const excluded = data.excluded || [];
-    document.getElementById("excludedLabel").style.display = excluded.length ? "block" : "none";
-    document.getElementById("excludedList").innerHTML = excluded
-      .map(e => `<div class="excluded-item"><b>${e.model}</b> — ${e.reason}</div>`).join("");
-
-    resultEl.style.display = "block";
+    renderResult(data);
+    addChat(query, data);
   } catch (err) {
     errorEl.textContent = err.message;
   } finally {
@@ -231,6 +503,9 @@ document.getElementById("submit").addEventListener("click", async () => {
     btn.textContent = "Route query";
   }
 });
+
+renderChatList();
+renderSettings();
 </script>
 </body>
 </html>
