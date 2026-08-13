@@ -398,6 +398,7 @@
     <div class="sidebar-label" id="balanceLabel" title="Fictional balance, for demo purposes — no real payment yet">Demo balance: $5.00</div>
     <button class="sidebar-nav-btn" id="exportBtn">⬇ Export chats</button>
     <button class="sidebar-nav-btn" id="feedbackBtn">💬 Feedback</button>
+    <button class="sidebar-nav-btn" id="aboutBtn">ℹ️ About</button>
     <button class="sidebar-nav-btn" id="settingsBtn">⚙ Settings</button>
   </div>
 </nav>
@@ -554,6 +555,102 @@
       <div id="feedbackList"></div>
     </div>
   </div>
+
+  <!-- About view — trust/compliance/story page: why routing quality gets
+       evaluated at all, how key privacy is actually provable (not just
+       claimed), and where this app currently stands on the EU AI Act. -->
+  <div class="view" id="aboutView">
+    <div class="card">
+      <h2 class="settings-title">Why we evaluate model responses</h2>
+      <p class="settings-sub">
+        Routing to "the best model" only means something if you can also tell when a model got
+        it wrong. Here's a real example from testing this app, not a hypothetical.
+      </p>
+      <p class="settings-sub" style="margin-bottom:0.6rem;">
+        <b>Prompt:</b> "Which female sang on The Smiths' Bigmouth Strikes Again?"
+      </p>
+      <div class="code-block" style="background:#2a1414;">
+        <div class="code-lang" style="color:#e0a3a3;">gpt-4o-mini — judged FAIL</div>
+        <code>The female vocal part was sung by Nena Hawkes.</code>
+      </div>
+      <p class="settings-sub" style="margin:0.3rem 0 0.8rem; font-size:0.78rem;">
+        Fabricated — there is no "Nena Hawkes" connected to this song. A confident, fluent,
+        completely made-up name: exactly the kind of error that's easy to miss if you only ever
+        see one model's answer.
+      </p>
+      <div class="code-block" style="background:#14241a;">
+        <div class="code-lang" style="color:#a3d9b8;">gpt-5.4 — judged PASS</div>
+        <code>Despite what the liner notes might say, no female singer actually sang on the
+track — the high-pitched backing vocals were Morrissey's own voice, pitch-shifted.</code>
+      </div>
+      <p class="settings-sub" style="margin:0.3rem 0 1.2rem; font-size:0.78rem;">
+        Correct and appropriately nuanced.
+      </p>
+      <p class="settings-sub">
+        Both responses came from models this app can route to. Left to chance, a user could just
+        as easily have landed on the wrong one with no way to know. That gap is what the
+        <a href="#" id="aboutEvaluatorLink">offline evaluator</a> exists to close: every real
+        response gets judged after the fact by a separate model, pass/fail plus a reason, and a
+        model's track record — on this specific route, not just in general — feeds back into
+        future routing decisions as its own signal, alongside real human thumbs-down votes. See
+        the <a href="#" id="aboutFeedbackLink">Feedback log</a> for what's actually been recorded.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 class="settings-title">How do I know you can't see my key?</h2>
+      <p class="settings-sub">
+        Short version: your key is used in exactly one kind of request — straight from this
+        browser tab to your model provider (e.g. api.openai.com) — and never touches Quindral's
+        own server, in any request, full stop. What Quindral's server <i>does</i> see is your
+        prompt and response text (used to evaluate model quality, as above) — a separate claim
+        from key privacy, not the same thing. Full detail, plus a live log of every request this
+        session has actually made, is on the <a href="#" id="aboutSettingsLink">Settings page</a> —
+        that's the place to verify this yourself rather than take it on faith here.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2 class="settings-title">EU AI Act</h2>
+      <p class="settings-sub">
+        This is a description of how the app is built, not a legal compliance certification —
+        we're not a law firm and this isn't legal advice. Worth reading as "what we've done," not
+        "we are certified compliant."
+      </p>
+      <ul class="settings-sub" style="padding-left:1.2rem; margin-bottom:1rem;">
+        <li style="margin-bottom:0.5rem;">
+          <b>Transparency by design.</b> The Act's Article 50 requires that people know when
+          they're interacting with an AI system and, for certain uses, understand how automated
+          decisions are made. This app's entire premise is showing the routing decision — which
+          model, why, what got excluded and why, what it cost — rather than a black-box answer.
+        </li>
+        <li style="margin-bottom:0.5rem;">
+          <b>Human oversight, not full automation.</b> Routing decisions are suggestions you can
+          override (run a different eligible model, vote a decision down), and the response-quality
+          signal blends real human feedback with automated judging rather than either one alone
+          silently deciding what happens next.
+        </li>
+        <li style="margin-bottom:0.5rem;">
+          <b>Data minimization where it's free to do.</b> Your API key never reaches this server at
+          all, in either direction (see above). Where content <i>is</i> retained (prompts/responses,
+          for quality evaluation), that retention is disclosed live in-app, not buried in a policy
+          document — see the network log on the Settings page.
+        </li>
+        <li style="margin-bottom:0.5rem;">
+          <b>EU-only hard filter.</b> A user-controlled toggle restricts routing to EU-hosted
+          models — relevant to data residency requirements some EU users/orgs may separately have,
+          independent of the AI Act itself.
+        </li>
+      </ul>
+      <p class="settings-sub">
+        Not yet addressed: a formal risk-tier self-assessment under the Act's classification
+        system, a published data retention/deletion policy, and (for redistribution rather than
+        personal/demo use) whatever obligations would apply to whoever operates or ships this
+        app as a service, not just how it's built. Flag if this needs to go further before real
+        EU users rely on it.
+      </p>
+    </div>
+  </div>
 </main>
 
 </div>
@@ -616,10 +713,15 @@ function showView(name) {
   document.getElementById(name + "View").classList.add("active");
   document.getElementById("settingsBtn").classList.toggle("active", name === "settings");
   document.getElementById("feedbackBtn").classList.toggle("active", name === "feedback");
+  document.getElementById("aboutBtn").classList.toggle("active", name === "about");
   if (name === "feedback") renderFeedbackList();
   if (name === "settings") renderNetworkLog();
 }
 document.getElementById("settingsBtn").addEventListener("click", () => showView("settings"));
+document.getElementById("aboutBtn").addEventListener("click", () => showView("about"));
+document.getElementById("aboutEvaluatorLink").addEventListener("click", (ev) => { ev.preventDefault(); showView("feedback"); });
+document.getElementById("aboutFeedbackLink").addEventListener("click", (ev) => { ev.preventDefault(); showView("feedback"); });
+document.getElementById("aboutSettingsLink").addEventListener("click", (ev) => { ev.preventDefault(); showView("settings"); });
 
 const OUTCOME_LABELS = {
   thumbs_up: "👍 routing", thumbs_down: "👎 routing",

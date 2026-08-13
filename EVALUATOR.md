@@ -70,7 +70,12 @@ QUINDRAL_JUDGE_OPENAI_KEY=sk-... \
   no cross-model consistency checking (the original EVALUATION.md scenario
   compared two models' answers directly — this judges each response against
   the prompt alone, not against each other).
-- Retry/backoff on judge API failures — a failed judge call is just skipped
-  and logged to stderr; the record isn't retried on the next run (it's
-  already behind the cursor by then). Acceptable at today's volume, worth
-  revisiting if judge-call failures turn out to be common.
+- Real exponential backoff on judge API failures — a failed judge call is
+  logged to stderr and retried on the **next run** (not immediately): the
+  cursor parks just before the earliest failure instead of advancing past
+  it, so a later run picks it up again. This does mean a run with any
+  failures also re-fetches (and harmlessly re-judges — deduped by
+  `(prompt_id, model_used)`, last-write-wins) some already-succeeded records
+  with later timestamps; a run isn't fully "caught up" until one comes back
+  with zero skips. Verified end-to-end: a record that failed on run 1 was
+  confirmed judged on run 2 without manual intervention.

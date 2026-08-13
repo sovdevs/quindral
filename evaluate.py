@@ -146,24 +146,42 @@ def run():
     print(f"pulled {len(records)} record(s) since {since if since is not None else 'the beginning'}")
 
     judged_count, skipped_count = 0, 0
-    max_timestamp = since or 0
+    max_ok_timestamp = since or 0
+    earliest_error_timestamp = None
     for r in records:
-        max_timestamp = max(max_timestamp, r.get("timestamp", 0))
+        ts = r.get("timestamp", 0)
         if r.get("outcome") not in JUDGEABLE_OUTCOMES:
+            max_ok_timestamp = max(max_ok_timestamp, ts)
             continue
         if not r.get("prompt_text") or not r.get("response_text"):
-            continue  # nothing to judge (shouldn't happen for admin-authed pulls, but be defensive)
+            max_ok_timestamp = max(max_ok_timestamp, ts)  # nothing to judge — not an error, safe to pass
+            continue
         try:
             verdict = judge_response(r["prompt_text"], r["response_text"])
             _api_post_judge(r["prompt_id"], r["model_used"], r.get("route_chosen"), verdict)
             judged_count += 1
+            max_ok_timestamp = max(max_ok_timestamp, ts)
             print(f"  {'PASS' if verdict['pass'] else 'FAIL'} {r['model_used']} ({r.get('route_chosen')}): {verdict['reasoning']}")
         except (urllib.error.URLError, json.JSONDecodeError, KeyError) as e:
             skipped_count += 1
+            if earliest_error_timestamp is None:
+                earliest_error_timestamp = ts
             print(f"  skipped one record due to error: {e}", file=sys.stderr)
 
-    _save_cursor(max_timestamp)
-    print(f"done: judged {judged_count}, skipped {skipped_count}, cursor advanced to {max_timestamp}")
+    # If anything errored, park the cursor just BEFORE the earliest failure
+    # so the next run retries it (the API's ?since= filter is a strict >,
+    # so a tiny epsilon back is needed to include that exact timestamp
+    # again) — this may also re-fetch and re-judge some already-succeeded
+    # records with later timestamps, which is harmless (judge_penalty_rate
+    # dedupes by (prompt_id, model_used), last-write-wins) but means a run
+    # with any errors in it isn't fully "done" until a later run has zero.
+    if earliest_error_timestamp is not None:
+        new_cursor = earliest_error_timestamp - 0.001
+    else:
+        new_cursor = max_ok_timestamp
+    _save_cursor(new_cursor)
+    print(f"done: judged {judged_count}, skipped {skipped_count}, cursor at {new_cursor}"
+          + (" (will retry the skipped ones next run)" if skipped_count else ""))
 
 
 def _demo():
