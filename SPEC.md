@@ -1,14 +1,18 @@
 # SPEC: Multi-Criteria LLM Orchestrator with Transparent Routing
 
 ## Status
-Working prototype, not yet deployed. Classify → route → explain → execute →
-evaluate → log pipeline is built and self-tested (`classifier.py`, `router.py`,
-`explain.py`, `providers.js`, `outcome_log.py`, `api.py`). Root app (`index.html`
-+ `api.py`) is the real, backend-connected build; `netlify/v0.7/` is a
-static, routing-only demo snapshot with no backend (see "Netlify Demo Scope"
-below). Next planned step: deploy the root app to Railway, then build the
-offline LLM-as-judge pipeline against real traffic (see "Offline Quality
-Judging" below).
+**Deployed and live on Railway** (root app, `api.py` + `index.html`) — see
+`RAILWAY.md` for the deployment plan (GitHub-connected, persistent volume
+for `outcomes.jsonl`, `QUINDRAL_LOG_PATH`/`QUINDRAL_ADMIN_TOKEN` set).
+Auto-deploy-on-push wasn't triggering initially (needed a manual "Deploy
+Latest Commit" the first time — cause not yet root-caused, see RAILWAY.md
+troubleshooting notes if it recurs). Classify → route → explain → execute →
+evaluate → log pipeline is built and self-tested (`classifier.py`,
+`router.py`, `explain.py`, `providers.js`, `outcome_log.py`, `api.py`).
+`netlify/v0.7/` remains a separate static, routing-only demo snapshot with
+no backend (see "Netlify Demo Scope" below). Next planned step: let real
+traffic accumulate, then build the offline LLM-as-judge pipeline against it
+(see "Offline Quality Judging" below).
 
 ## Context / Origin
 Independent app, inspired by (not affiliated with, not a wrapper of) [aim2balance.ai](https://aim2balance.ai) — an EU-based orchestrator that routes prompts across open-source LLMs (Gemma, Mistral, Llama, Qwen, GLM, Kimi K2), optimizing primarily for environmental efficiency and EU data residency, using what they describe publicly as "five capability routes" plus a language-aware routing layer. They do not expose routing reasoning to end users — that gap is the core differentiator for this project.
@@ -422,7 +426,7 @@ Recommended plan: seed Phase 0 with public datasets + synthetic generation (Phas
 - **Classifier runtime location**: server/backend vs. edge/on-device (mobile) — not yet decided by user.
 - **UI mechanism for user-adjustable criteria weights**: ~~sliders vs. presets vs. toggles~~ **resolved — budget-allocator sliders, see "UI Decisions."**
 - **Judge model / fact-checking mechanism**: deferred (see "Offline Quality Judging") — LLM-as-judge vs. external fact-checking API vs. cross-model consistency check not yet chosen, blocked on having real traffic to test against.
-- **Server hardening**: `api.py` is explicitly the stdlib prototype server (no rate limiting, no HTTPS, single-process) — fine for a controlled demo, not for public/production traffic at scale. `/outcomes` now has token auth + per-user redaction (this session), but `/route`/`/feedback`/`/outcome`/`/pricing` remain fully open with no rate limiting — a real ASGI server is still needed before wide distribution, separate from the Railway deploy itself.
+- **Server hardening**: `api.py` is explicitly the stdlib prototype server (single-process, no real framework) — fine for a controlled demo, not guaranteed to hold up at real scale. Closed since deploy: `/outcomes` has token auth + per-user redaction, and **every POST endpoint + `GET /outcomes` now has per-IP rate limiting** (`RateLimiter`, in-memory sliding window, default 60 req/60s, env-configurable via `QUINDRAL_RATE_LIMIT_MAX`/`QUINDRAL_RATE_LIMIT_WINDOW`, admin-token requests exempt). Still open: it's in-memory and per-process — correct at today's single Railway instance, would need a real shared store (e.g. Redis) if this ever scales to multiple replicas; static file serving isn't rate-limited; a real ASGI server is still the eventual answer if traffic actually grows, not needed yet.
 - **Multi-provider execution**: only OpenAI is wired for real calls. Anthropic, Google, Mistral, Moonshot, Microsoft, and gateway (OpenRouter-style) execution are all unbuilt — each is its own increment, not yet scheduled.
 - **Enterprise/team tier**: identified as the real monetization target, needs an org/multi-user data model the app doesn't have (today: single browser, no accounts) — not scoped in detail yet.
 

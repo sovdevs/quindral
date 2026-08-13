@@ -87,9 +87,12 @@ Project → the service → **Variables**:
     `X-Quindral-Admin-Token: <the token>` returns full records.
 
 ## What this does NOT cover (still open, see SPEC.md "Open Risks")
-- **Rate limiting.** Railway doesn't add this for you. `/route`, `/feedback`,
-  `/outcome`, and `/pricing` are all unauthenticated and uncapped — fine
-  for a controlled demo link, not for wide public distribution.
+- **Rate limiting is now built** (per-IP, in-memory, see `api.py`'s
+  `RateLimiter`) — Railway doesn't add this for you, so it had to be app-side.
+  Optional overrides: `QUINDRAL_RATE_LIMIT_MAX` (default 60) and
+  `QUINDRAL_RATE_LIMIT_WINDOW` (default 60 seconds). It's per-process/in-memory
+  though — fine at today's single instance, wouldn't coordinate correctly if
+  this ever scales to multiple Railway replicas.
 - **HTTPS** is automatic on Railway's provided domain (railway.app subdomain
   or a custom domain with their managed cert) — this part *is* covered for
   free, no action needed.

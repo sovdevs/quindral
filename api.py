@@ -32,13 +32,21 @@
   server at all (BYOK calls go straight from the browser to the provider). The
   frontend's network-activity log (index.html) discloses this to the user live.
 
+  RATE LIMITING: per-IP sliding window (see RateLimiter) on every POST endpoint
+  and on GET /outcomes (except admin-authenticated requests, which are exempt —
+  see _rate_limited). Default 60 requests / 60s, overridable via
+  QUINDRAL_RATE_LIMIT_MAX / QUINDRAL_RATE_LIMIT_WINDOW. Static file serving
+  (/, /logo.png, /byok.js, /providers.js) is NOT limited.
+
 Stdlib http.server only, no framework dep installed yet — swap for
 FastAPI/Flask when request volume or middleware needs (auth, validation,
 docs) outgrow this. Run: python3 api.py --serve
 """
 import json
 import os
+import time
 import uuid
+from collections import defaultdict, deque
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
@@ -53,6 +61,39 @@ from model_registry import REGISTRY
 # "wide open." Unset in local dev (no token required, matches prior behavior).
 ADMIN_TOKEN = os.environ.get("QUINDRAL_ADMIN_TOKEN")
 
+
+class RateLimiter:
+    """Per-IP sliding-window limiter, in-memory. No locking: `serve()` uses
+    the stdlib's single-threaded HTTPServer (not Threading), so requests are
+    already handled one at a time — this would need a lock if that ever
+    changes. Not shared across replicas either (fine at today's single-
+    instance Railway scale; would need a real store, e.g. Redis, to work
+    correctly with >1 instance)."""
+
+    def __init__(self, max_requests: int, window_seconds: float):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self._hits = defaultdict(deque)
+
+    def allow(self, key: str) -> bool:
+        now = time.time()
+        q = self._hits[key]
+        while q and now - q[0] > self.window_seconds:
+            q.popleft()
+        if len(q) >= self.max_requests:
+            return False
+        q.append(now)
+        return True
+
+
+# Defaults: generous enough for normal interactive use (routing a bunch of
+# queries, voting, running models in one session), restrictive enough to
+# stop a script hammering the server. Env-configurable since "right" depends
+# on real traffic patterns we don't have yet.
+RATE_LIMIT_MAX = int(os.environ.get("QUINDRAL_RATE_LIMIT_MAX", "60"))
+RATE_LIMIT_WINDOW = float(os.environ.get("QUINDRAL_RATE_LIMIT_WINDOW", "60"))
+_rate_limiter = RateLimiter(RATE_LIMIT_MAX, RATE_LIMIT_WINDOW)
+
 INDEX_HTML = Path(__file__).parent / "index.html"
 LOGO_PNG = Path(__file__).parent / "logo.png"
 BYOK_JS = Path(__file__).parent / "byok.js"
@@ -60,6 +101,14 @@ PROVIDERS_JS = Path(__file__).parent / "providers.js"
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _rate_limited(self) -> bool:
+        """Sends a 429 and returns True if this client is over the limit —
+        callers should `return` immediately when this is True."""
+        if not _rate_limiter.allow(self.client_address[0]):
+            self._send(429, {"error": f"rate limit exceeded, max {RATE_LIMIT_MAX} requests per {RATE_LIMIT_WINDOW:g}s"})
+            return True
+        return False
+
     def do_GET(self):
         path = urlsplit(self.path).path
         if path == "/":
@@ -78,6 +127,11 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_list_outcomes(self):
         query = parse_qs(urlsplit(self.path).query)
         is_admin = bool(ADMIN_TOKEN) and self.headers.get("X-Quindral-Admin-Token") == ADMIN_TOKEN
+        # Admin (the evaluator, holding the real secret) is exempt — it's a
+        # trusted, known caller doing legitimate paginated bulk pulls, not
+        # the anonymous public traffic this limiter exists to blunt.
+        if not is_admin and self._rate_limited():
+            return
 
         if is_admin:
             # Evaluator path: full content, resumable via ?since=<unix ts>,
@@ -115,6 +169,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
+        if self._rate_limited():
+            return
         if self.path == "/route":
             self._handle_route()
         elif self.path == "/feedback":
