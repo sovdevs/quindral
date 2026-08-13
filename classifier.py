@@ -8,27 +8,48 @@ from collections import Counter
 
 ROUTES = ["code", "vision", "long_context", "simple", "reasoning"]
 
-# A few reference phrases per route for centroid word-overlap matching.
+# Reference phrases per route for centroid word-overlap matching. Deliberately
+# varied phrasing/vocabulary per route (not just near-duplicates of each
+# other) since bag-of-words similarity only catches queries sharing literal
+# words with these — see eval_classifier.py for measured accuracy impact.
 REFERENCE_EXAMPLES = {
     "code": [
         "write a python function that sorts a list",
         "fix this bug in my javascript code",
         "how do I implement a binary search tree",
         "debug this stack trace",
+        "why does my css layout keep breaking on mobile",
+        "this sql query is returning duplicate rows, what's wrong",
+        "my docker container keeps exiting immediately, help",
+        "convert this react class component to use hooks",
+        "write a shell script to automate this deployment",
+        "what's the correct syntax for a git rebase",
     ],
     "vision": [
         "what is in this image",
         "describe this photo",
         "analyze the attached screenshot",
+        "can you read the text in this scanned document",
+        "is there anything unusual in this x-ray",
+        "what's wrong with the layout in this UI mockup",
+        "identify the objects visible in this picture",
+        "transcribe the handwriting shown here",
     ],
     "long_context": [
         "summarize this entire document",
         "read through this long report and extract key points",
+        "go through this whole contract and flag anything unusual",
+        "compare these lengthy research papers for contradictions",
+        "extract every action item from this long email thread",
     ],
     "reasoning": [
         "explain step by step why this proof works",
         "solve this complex multi-step math problem",
         "plan a strategy considering multiple tradeoffs",
+        "work out a word problem involving relative speed and distance",
+        "determine whether this argument is logically valid",
+        "calculate the probability of a specific card-drawing outcome",
+        "figure out the most efficient path between several locations",
     ],
     "simple": [
         "what is the capital of france",
@@ -41,12 +62,16 @@ REFERENCE_EXAMPLES = {
 _STOPWORDS = {
     "a", "an", "the", "is", "in", "of", "this", "what", "how", "do", "i",
     "to", "and", "that", "it", "for", "on", "my", "with", "why",
+    "are", "there", "was", "were", "be", "been", "can", "does", "did",
 }
 
 
 def _tokenize(text):
     words = re.findall(r"[a-z0-9]+", text.lower())
-    return [w for w in words if w not in _STOPWORDS]
+    # drop single-char tokens too — mostly contraction debris ("what's" -> "s",
+    # "don't" -> "t") that carries no signal and causes spurious collisions
+    # between any two queries that happen to both use a contraction
+    return [w for w in words if w not in _STOPWORDS and len(w) > 1]
 
 
 def _bow(text):
@@ -84,22 +109,48 @@ def _embedding_similarity_scores(query: str) -> dict:
 
 def _heuristic_boosts(query: str) -> dict:
     boosts = {route: 0.0 for route in ROUTES}
-    if re.search(r"```|def |function\s*\(|class \w+|import \w+|;\s*$", query, re.M):
+    if re.search(
+        r"```|def |function\s*\(|class \w+|import \w+|;\s*$|"
+        r"\b(css|sql|docker|kubernetes|regex|npm|git|api|react|hooks|"
+        r"container|component|query|syntax|compile|stack trace|repo)\b",
+        query, re.I | re.M,
+    ):
         boosts["code"] += 0.3
-    if re.search(r"\b(image|photo|picture|screenshot|diagram)\b", query, re.I):
+    if re.search(r"\b(image|photo|picture|screenshot|diagram|x-ray|scan(ned)?|mockup|handwriting)\b", query, re.I):
         boosts["vision"] += 0.3
     word_count = len(_tokenize(query))
     if word_count > 200:
         boosts["long_context"] += 0.3
-    if re.search(r"[=+\-*/^]|\bsolve\b|\bprove\b", query, re.I):
+    if re.search(r"[=+\-*/^]|\b(solve|prove|probability|logically valid|logical fallacy|derive)\b", query, re.I):
         boosts["reasoning"] += 0.15
     if word_count < 12 and "?" in query:
         boosts["simple"] += 0.15
     return boosts
 
 
+# Signals that a query needs information newer than any model's training
+# cutoff (current events, prices, scores, "who is currently X") — the
+# retrieval-necessity / knowledge-boundary problem. This is orthogonal to
+# the task-type route above: a query can be "simple" AND need live search
+# ("what's the weather right now") or "simple" and not ("capital of Spain").
+_CURRENT_INFO_PATTERN = re.compile(
+    r"\b(today|tonight|currently|current|right now|as of|this week|this month|this year|"
+    r"latest|breaking|recent(ly)?|up[- ]to[- ]date|"
+    r"who (is|are) the (current|latest)|who won|who is winning|"
+    r"stock price|exchange rate|weather (in|today|right now)|"
+    r"score of|live score|"
+    r"20[2-9]\d)\b",
+    re.I,
+)
+
+
+def needs_current_info(query: str) -> bool:
+    """Heuristic: does this query likely need retrieval beyond training-cutoff knowledge?"""
+    return bool(_CURRENT_INFO_PATTERN.search(query))
+
+
 def classify(query: str) -> dict:
-    """Return {"route": str, "confidence": float, "scores": {route: score}}."""
+    """Return {"route", "confidence", "scores", "needs_current_info"}."""
     sim_scores = _embedding_similarity_scores(query)
     boosts = _heuristic_boosts(query)
     scores = {route: sim_scores[route] + boosts[route] for route in ROUTES}
@@ -110,7 +161,12 @@ def classify(query: str) -> dict:
         route = "simple"
     else:
         route = max(scores, key=scores.get)
-    return {"route": route, "confidence": round(scores[route], 3), "scores": scores}
+    return {
+        "route": route,
+        "confidence": round(scores[route], 3),
+        "scores": scores,
+        "needs_current_info": needs_current_info(query),
+    }
 
 
 def _demo():
@@ -126,6 +182,21 @@ def _demo():
         assert result["route"] == expected, (
             f"expected {expected}, got {result['route']} for {query!r}: {result['scores']}"
         )
+
+    current_info_cases = {
+        "what's the weather in Tokyo right now": True,
+        "who won the game last night": True,
+        "what's the latest news on the election": True,
+        "what is the capital of Spain": False,
+        "write a python function that reverses a string": False,
+        "explain how photosynthesis works": False,
+    }
+    for query, expected in current_info_cases.items():
+        result = classify(query)
+        assert result["needs_current_info"] == expected, (
+            f"expected needs_current_info={expected} for {query!r}, got {result['needs_current_info']}"
+        )
+
     print("classifier self-check: all cases passed")
 
 

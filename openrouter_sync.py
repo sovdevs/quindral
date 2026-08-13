@@ -21,6 +21,7 @@ OPENROUTER_IDS = {
     "llama-3.1-8b": "meta-llama/llama-3.1-8b-instruct",
     "llama-3.3-70b": "meta-llama/llama-3.3-70b-instruct",
     "qwen-2.5-coder": "qwen/qwen-2.5-coder-32b-instruct",
+    "phi-4": "microsoft/phi-4",
     "gpt-4o-mini": "openai/gpt-4o-mini",
     "gpt-4o": "openai/gpt-4o",
     "gpt-5.4-mini": "openai/gpt-5.4-mini",

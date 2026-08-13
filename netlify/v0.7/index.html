@@ -1,0 +1,791 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Quindral (v0.7 demo)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --forest: #1f3d2e;
+    --river: #16324f;
+    --bg: #f6f7f4;
+    --card: #f4f2ec;
+    --text: #1a1f1c;
+    --muted: #5c6b62;
+    --accent: #2f6b4f;
+    --sidebar: #12211a;
+    --sidebar-text: #dfe8e2;
+    --sidebar-muted: #8ba296;
+    --sidebar-hover: #1c3327;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* --- Sidebar --- */
+  #sidebar {
+    width: 260px;
+    flex-shrink: 0;
+    background: var(--sidebar);
+    color: var(--sidebar-text);
+    display: flex;
+    flex-direction: column;
+    padding: 1.2rem 0.9rem;
+  }
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0 0.4rem 1.2rem;
+  }
+  .logo-img {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .brand-gold {
+    font-family: Georgia, "Times New Roman", "Palatino Linotype", serif;
+    font-weight: 700;
+    background: linear-gradient(180deg, #f5d78e, #c99a3e 55%, #9c7526);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: #c99a3e;
+  }
+  .logo-row span { font-size: 1.15rem; letter-spacing: 0.01em; }
+  .version-badge {
+    font-size: 0.68rem;
+    color: var(--sidebar-muted);
+    padding: 0 0.4rem 0.9rem;
+    letter-spacing: 0.03em;
+  }
+
+  .new-chat-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    background: transparent;
+    border: 1px solid #2c4a3a;
+    color: var(--sidebar-text);
+    padding: 0.6rem 0.8rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    margin-bottom: 1rem;
+  }
+  .new-chat-btn:hover { background: var(--sidebar-hover); }
+
+  .sidebar-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--sidebar-muted);
+    padding: 0.4rem;
+    margin-top: 0.4rem;
+  }
+  #chatList {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .chat-item {
+    padding: 0.55rem 0.6rem;
+    border-radius: 7px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--sidebar-text);
+  }
+  .chat-item:hover, .chat-item.active { background: var(--sidebar-hover); }
+  .chat-item-empty { font-size: 0.8rem; color: var(--sidebar-muted); padding: 0.5rem 0.6rem; }
+
+  .sidebar-footer {
+    border-top: 1px solid #223a2d;
+    padding-top: 0.7rem;
+    margin-top: 0.7rem;
+  }
+  .sidebar-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: var(--sidebar-text);
+    padding: 0.55rem 0.6rem;
+    border-radius: 7px;
+    font-size: 0.88rem;
+    cursor: pointer;
+    text-align: left;
+  }
+  .sidebar-nav-btn:hover, .sidebar-nav-btn.active { background: var(--sidebar-hover); }
+
+  /* --- Main content --- */
+  /* Fixed full-page background (same "cover" treatment as before), but with
+     a FLAT translucent dark tint instead of a gradient that fades to cream —
+     that fade had a hard edge at a fixed viewport height that happened to
+     cut across the "A SMART AI ROUTER" lettering. A flat tint has no edge,
+     so nothing in the artwork ever gets cropped or sliced. */
+  #content {
+    flex: 1;
+    min-width: 0;
+    background:
+      linear-gradient(rgba(6,10,8,0.6), rgba(6,10,8,0.6)),
+      url("logo.png") center 15% / cover no-repeat fixed;
+    min-height: 100vh;
+  }
+  header {
+    padding: 2.2rem 1.5rem 1.6rem;
+    text-align: center;
+    background: transparent;
+    color: #fff;
+  }
+  header h1 { margin: 0 0 0.4rem; font-size: 1.7rem; letter-spacing: -0.02em; text-shadow: 0 2px 10px rgba(0,0,0,0.6); }
+  header p { margin: 0; opacity: 0.9; font-size: 0.95rem; text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
+  .demo-banner {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0.5rem 1rem;
+    text-align: center;
+    font-size: 0.78rem;
+    color: #ffe9a8;
+    opacity: 0.9;
+  }
+
+  main {
+    max-width: 720px;
+    margin: 1.5rem auto 3rem;
+    padding: 0 1.5rem;
+  }
+  .view { display: none; }
+  .view.active { display: block; }
+
+  .card {
+    background: var(--card);
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    padding: 1.75rem;
+    margin-bottom: 1.5rem;
+  }
+  select, input[type=text], input[type=password] {
+    width: 100%;
+    padding: 0.8rem;
+    border-radius: 8px;
+    border: 1px solid #d7ddd5;
+    font-size: 1rem;
+    font-family: inherit;
+    background: #fff;
+    color: var(--text);
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    margin: 1.2rem 0;
+  }
+  .slider-group { flex: 1; min-width: 140px; }
+  .slider-group label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.85rem;
+    color: var(--muted);
+    margin-bottom: 0.3rem;
+  }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  button.primary {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 0.75rem 1.6rem;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    margin-top: 0.5rem;
+  }
+  button.primary:hover { opacity: 0.92; }
+  button.primary:disabled { opacity: 0.5; cursor: default; }
+
+  .result { display: none; }
+  .chosen-model { font-size: 1.3rem; font-weight: 600; color: var(--forest); }
+  .explanation { color: var(--muted); margin: 0.6rem 0 1.2rem; line-height: 1.5; }
+  .trace-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin: 1rem 0 0.4rem;
+  }
+  .pill-list { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .pill {
+    background: #eaf1ec;
+    color: var(--forest);
+    border-radius: 999px;
+    padding: 0.25rem 0.7rem;
+    font-size: 0.85rem;
+  }
+  .excluded-item {
+    font-size: 0.85rem;
+    color: var(--muted);
+    padding: 0.3rem 0;
+    border-bottom: 1px solid #f0f1ee;
+  }
+  .excluded-item b { color: var(--text); }
+  .error { color: #a33; }
+
+  /* --- Settings view --- */
+  .settings-title { margin: 0 0 0.3rem; font-size: 1.2rem; }
+  .settings-sub { color: var(--muted); font-size: 0.85rem; margin: 0 0 1.4rem; }
+  .settings-sub a { color: var(--accent); }
+  .settings-section-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    font-weight: 700;
+    margin: 1.4rem 0 0.3rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eceeeb;
+  }
+  .settings-section-label:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+  .key-row { margin-bottom: 1.1rem; }
+  .key-row label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.35rem;
+  }
+  .key-row .base-url-input {
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
+  }
+  .key-status {
+    font-size: 0.78rem;
+    margin-top: 0.3rem;
+    color: var(--muted);
+  }
+  .key-status.set { color: var(--accent); }
+  .saved-note {
+    font-size: 0.8rem;
+    color: var(--accent);
+    margin-top: 0.6rem;
+    display: none;
+  }
+
+  .feedback-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 1.2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eceeeb;
+  }
+  .feedback-label { font-size: 0.8rem; color: var(--muted); margin-right: 0.2rem; }
+  .thumb-btn {
+    background: transparent;
+    border: 1px solid #d7ddd5;
+    border-radius: 8px;
+    padding: 0.35rem 0.7rem;
+    font-size: 1rem;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .thumb-btn:hover { background: #eceeeb; }
+  .thumb-btn.active-up { background: #e2f0e6; border-color: var(--accent); }
+  .thumb-btn.active-down { background: #f5e2e2; border-color: #a33; }
+  .feedback-sent { font-size: 0.78rem; color: var(--muted); margin-left: 0.3rem; }
+</style>
+</head>
+<body>
+
+<nav id="sidebar">
+  <div class="logo-row">
+    <img class="logo-img" src="logo.png" alt="Quindral logo">
+    <span class="brand-gold">Quindral</span>
+  </div>
+  <div class="version-badge">v0.7 — static demo snapshot</div>
+
+  <button class="new-chat-btn" id="newChatBtn">+ New chat</button>
+
+  <div class="sidebar-label">Recent</div>
+  <div id="chatList"></div>
+
+  <div class="sidebar-footer">
+    <div class="sidebar-label" id="balanceLabel" title="Fictional balance, for demo purposes — no real payment yet">Demo balance: $5.00</div>
+    <button class="sidebar-nav-btn" id="exportBtn">⬇ Export chats</button>
+    <button class="sidebar-nav-btn" id="settingsBtn">⚙ Settings</button>
+  </div>
+</nav>
+
+<div id="content">
+
+<header>
+  <h1 class="brand-gold">Quindral</h1>
+  <p>Transparent multi-criteria LLM routing</p>
+</header>
+<div class="demo-banner">Static demo build (v0.7) — routing runs entirely in your browser, no server.</div>
+
+<main>
+  <!-- Chat / router view -->
+  <div class="view active" id="chatView">
+    <div class="card">
+      <select id="query">
+        <option value="prove that there are infinitely many primes">Reasoning — prove infinitude of primes (try the sliders)</option>
+        <option value="plan a strategy considering multiple tradeoffs">Reasoning — multi-step strategy planning (try the sliders)</option>
+        <option value="describe what's happening in this photo">Vision — describe a photo (try the sliders)</option>
+        <option value="write a python function to reverse a linked list">Code — reverse a linked list (Python)</option>
+        <option value="fix this bug in my javascript code">Code — fix a JavaScript bug</option>
+        <option value="what is the capital of spain?">Simple — capital of Spain</option>
+        <option value="what time is it in tokyo">Simple — time in Tokyo</option>
+        <option value="summarize this entire 300-page report and extract key points">Long context — summarize a long report</option>
+        <option value="translate this book into German">Edge case — translate a book (no matching route)</option>
+      </select>
+      <p class="settings-sub" id="unlockHint" style="margin:0.5rem 0 0; font-size:0.8rem;"></p>
+
+      <textarea id="queryText" rows="2" placeholder="Type your own query…" style="display:none; width:100%; margin-top:0.8rem; padding:0.8rem; border-radius:8px; border:1px solid #d7ddd5; font:inherit; resize:vertical;"></textarea>
+
+      <div class="controls">
+        <div class="slider-group">
+          <label>Cost <span id="costVal">60%</span></label>
+          <input type="range" id="cost" min="0" max="100" step="1" value="60">
+        </div>
+        <div class="slider-group">
+          <label>Environment <span id="envVal">30%</span></label>
+          <input type="range" id="env" min="0" max="100" step="1" value="30">
+        </div>
+        <div class="slider-group">
+          <label>Speed <span id="latencyVal">10%</span></label>
+          <input type="range" id="latency" min="0" max="100" step="1" value="10">
+        </div>
+      </div>
+
+      <div class="toggle-row">
+        <input type="checkbox" id="euOnly">
+        <label for="euOnly">EU-only (privacy)</label>
+      </div>
+
+      <button class="primary" id="submit">Route query</button>
+    </div>
+
+    <div class="card result" id="result">
+      <div class="chosen-model" id="chosenModel"></div>
+      <p class="explanation" id="explanationText"></p>
+      <p class="settings-sub" id="feeNote" style="margin:0 0 0.8rem; font-size:0.78rem;"></p>
+      <p class="settings-sub" id="accessNote" style="margin:0 0 0.8rem; font-size:0.78rem; display:none;"></p>
+
+      <div class="trace-label">Eligible models</div>
+      <div class="pill-list" id="eligibleList"></div>
+
+      <div class="trace-label" id="excludedLabel">Excluded</div>
+      <div id="excludedList"></div>
+
+      <div class="feedback-row">
+        <span class="feedback-label">Was this the right call?</span>
+        <button class="thumb-btn" id="thumbUp" title="Good routing decision">👍</button>
+        <button class="thumb-btn" id="thumbDown" title="Bad routing decision">👎</button>
+        <span class="feedback-sent" id="feedbackSent"></span>
+      </div>
+    </div>
+
+    <div class="error" id="errorText"></div>
+  </div>
+
+  <!-- Settings / BYOK view -->
+  <div class="view" id="settingsView">
+    <div class="card">
+      <h2 class="settings-title">Settings</h2>
+      <p class="settings-sub">
+        Bring your own API keys. Keys are stored only in this browser's local storage —
+        this is a static site with no server at all, so nothing is ever sent anywhere.
+        Powered by <a href="https://github.com/" target="_blank" rel="noopener">byok.js</a>.
+      </p>
+
+      <div class="settings-section-label">Direct provider keys</div>
+      <p class="settings-sub" style="margin-bottom: 0.8rem;">One key per provider's native API.</p>
+      <div id="directKeyFields"></div>
+
+      <div class="settings-section-label">Gateway keys</div>
+      <p class="settings-sub" style="margin-bottom: 0.8rem;">
+        Aggregators like OpenRouter cover many providers/models through a single key + endpoint.
+        Used as a fallback for any provider without its own direct key above — except under
+        EU-only, where a gateway is only used if explicitly marked as EU-compliant.
+      </p>
+      <div id="gatewayKeyFields"></div>
+
+      <button class="primary" id="saveKeysBtn">Save keys</button>
+      <div class="saved-note" id="savedNote">Saved.</div>
+    </div>
+  </div>
+</main>
+
+</div>
+
+<script src="router.js"></script>
+<script type="module">
+import { BYOKStore } from "./byok.js";
+
+const byok = new BYOKStore(); // single shared "default" user — no auth in this demo
+
+const CHATS_KEY = "quindral_chats";
+let ALL_MODELS = [];
+
+// ---------- view switching ----------
+function showView(name) {
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  document.getElementById(name + "View").classList.add("active");
+  document.getElementById("settingsBtn").classList.toggle("active", name === "settings");
+}
+document.getElementById("settingsBtn").addEventListener("click", () => showView("settings"));
+document.getElementById("newChatBtn").addEventListener("click", () => {
+  showView("chat");
+  document.getElementById("result").style.display = "none";
+  document.getElementById("errorText").textContent = "";
+  document.getElementById("thumbUp").classList.remove("active-up");
+  document.getElementById("thumbDown").classList.remove("active-down");
+  document.getElementById("feedbackSent").textContent = "";
+  document.getElementById("feeNote").textContent = "";
+  document.getElementById("accessNote").style.display = "none";
+  currentChatId = null;
+  currentTrace = null;
+  setActiveChatItem(null);
+});
+
+// ---------- chat history (localStorage) ----------
+function loadChats() {
+  try { return JSON.parse(localStorage.getItem(CHATS_KEY)) || []; }
+  catch { return []; }
+}
+function saveChats(chats) {
+  localStorage.setItem(CHATS_KEY, JSON.stringify(chats.slice(0, 30)));
+}
+function setActiveChatItem(id) {
+  document.querySelectorAll(".chat-item").forEach(el => {
+    el.classList.toggle("active", el.dataset.id === String(id));
+  });
+}
+function renderChatList() {
+  const chats = loadChats();
+  const listEl = document.getElementById("chatList");
+  if (!chats.length) {
+    listEl.innerHTML = '<div class="chat-item-empty">No chats yet</div>';
+    return;
+  }
+  listEl.innerHTML = chats.map(c =>
+    `<div class="chat-item" data-id="${c.id}" title="${c.query}">${c.query}</div>`
+  ).join("");
+  listEl.querySelectorAll(".chat-item").forEach(el => {
+    el.addEventListener("click", () => {
+      const chat = chats.find(c => String(c.id) === el.dataset.id);
+      if (chat) {
+        showView("chat");
+        renderResult(chat.result, chat.id, chat.vote, chat.feeInfo);
+        setActiveChatItem(chat.id);
+      }
+    });
+  });
+}
+function addChat(query, result, chatId, feeInfo) {
+  const chats = loadChats();
+  chats.unshift({ id: chatId, query, result, vote: null, feeInfo: feeInfo || null });
+  saveChats(chats);
+  renderChatList();
+  setActiveChatItem(chatId);
+}
+// ponytail: localStorage-only, one vote per chat overwrites the last — no
+// server, so there's no cross-browser/per-user tallying to guard against.
+function saveChatVote(chatId, vote) {
+  const chats = loadChats();
+  const chat = chats.find(c => String(c.id) === String(chatId));
+  if (chat) {
+    chat.vote = vote;
+    saveChats(chats);
+  }
+}
+
+// ---------- BYOK settings ----------
+function renderSettings() {
+  const directContainer = document.getElementById("directKeyFields");
+  directContainer.innerHTML = byok.listDirectProviders().map(p => {
+    const cred = byok.getCredential(p.id);
+    const isSet = cred && cred.type === "direct";
+    return `
+      <div class="key-row">
+        <label for="direct-${p.id}">${p.label} API key</label>
+        <input type="password" id="direct-${p.id}" placeholder="sk-…" value="${isSet ? cred.api_key : ""}">
+        <div class="key-status ${isSet ? "set" : ""}">${isSet ? "Key saved in this browser" : "Not set"}</div>
+      </div>
+    `;
+  }).join("");
+
+  const gatewayContainer = document.getElementById("gatewayKeyFields");
+  gatewayContainer.innerHTML = byok.listGateways().map(g => {
+    const cred = byok.getCredential(g.id);
+    const isSet = cred && cred.type === "gateway";
+    return `
+      <div class="key-row">
+        <label for="gateway-${g.id}">${g.label} API key</label>
+        <input type="password" id="gateway-${g.id}" placeholder="sk-…" value="${isSet ? cred.api_key : ""}">
+        <input type="text" class="base-url-input" id="gateway-${g.id}-url" placeholder="Base URL"
+               value="${isSet ? cred.base_url : g.base_url}">
+        <div class="key-status ${isSet ? "set" : ""}">${isSet ? "Key saved in this browser" : "Not set"}</div>
+      </div>
+    `;
+  }).join("");
+}
+
+document.getElementById("saveKeysBtn").addEventListener("click", () => {
+  byok.listDirectProviders().forEach(p => {
+    const val = document.getElementById(`direct-${p.id}`).value.trim();
+    if (val) byok.setCredential(p.id, { type: "direct", api_key: val });
+    else byok.removeCredential(p.id);
+  });
+  byok.listGateways().forEach(g => {
+    const val = document.getElementById(`gateway-${g.id}`).value.trim();
+    const baseUrl = document.getElementById(`gateway-${g.id}-url`).value.trim();
+    if (val && baseUrl) byok.setCredential(g.id, { type: "gateway", api_key: val, base_url: baseUrl });
+    else byok.removeCredential(g.id);
+  });
+  renderSettings();
+  const note = document.getElementById("savedNote");
+  note.style.display = "block";
+  setTimeout(() => note.style.display = "none", 2000);
+});
+
+// ---------- query input ----------
+const PRESET_TRIES_REQUIRED = 5;
+const PRESET_TRIES_KEY = "quindral_preset_tries";
+const FREETEXT_UNLOCKED_KEY = "quindral_freetext_unlocked";
+const queryText = document.getElementById("queryText");
+const querySelect = document.getElementById("query");
+const unlockHint = document.getElementById("unlockHint");
+querySelect.addEventListener("change", () => { queryText.value = querySelect.value; });
+queryText.value = querySelect.value;
+
+function presetTries() { return parseInt(localStorage.getItem(PRESET_TRIES_KEY) || "0", 10); }
+function isFreetextUnlocked() { return localStorage.getItem(FREETEXT_UNLOCKED_KEY) === "1"; }
+
+function renderQueryInputState() {
+  if (isFreetextUnlocked()) {
+    querySelect.style.display = "none";
+    unlockHint.textContent = "";
+    queryText.style.display = "block";
+  } else {
+    querySelect.style.display = "block";
+    queryText.style.display = "none";
+    const remaining = PRESET_TRIES_REQUIRED - presetTries();
+    unlockHint.textContent = `Try ${remaining} more preset${remaining === 1 ? "" : "s"} to unlock typing your own query.`;
+  }
+}
+renderQueryInputState();
+
+// ---------- demo balance (fictional — no real payment wired up yet) ----------
+// #4 monetization prototype: flat fee per own-prompt route, decoupled from
+// token cost (presets stay free). Deliberately NOT charged for BYOK's real
+// token spend — this fee is for the routing decision itself, not the tokens.
+const BALANCE_KEY = "quindral_demo_balance";
+const ROUTING_FEE = 0.02;
+const STARTING_BALANCE = 5.00;
+
+function getBalance() {
+  const stored = localStorage.getItem(BALANCE_KEY);
+  return stored === null ? STARTING_BALANCE : parseFloat(stored);
+}
+function renderBalance() {
+  document.getElementById("balanceLabel").textContent = `Demo balance: $${getBalance().toFixed(2)}`;
+}
+function chargeRoutingFee() {
+  let balance = getBalance() - ROUTING_FEE;
+  let reset = false;
+  if (balance <= 0) {
+    balance = STARTING_BALANCE;
+    reset = true;
+  }
+  localStorage.setItem(BALANCE_KEY, String(balance));
+  renderBalance();
+  return reset;
+}
+renderBalance();
+
+document.getElementById("exportBtn").addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(loadChats(), null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "quindral_chats.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+// ---------- routing ----------
+// Budget-allocator sliders: always sum to 100%, so the numbers read as
+// relative priority instead of independent 0-1 weights.
+const sliders = ["cost", "env", "latency"];
+function rebalanceSliders(changedId) {
+  const values = {};
+  sliders.forEach(id => values[id] = parseFloat(document.getElementById(id).value));
+  const others = sliders.filter(id => id !== changedId);
+  const remaining = 100 - values[changedId];
+  const othersSum = others.reduce((s, id) => s + values[id], 0);
+  others.forEach(id => {
+    const share = othersSum > 0 ? values[id] / othersSum : 0.5;
+    values[id] = Math.round(remaining * share);
+  });
+  const drift = 100 - sliders.reduce((s, id) => s + values[id], 0);
+  values[others[others.length - 1]] += drift;
+  sliders.forEach(id => {
+    document.getElementById(id).value = values[id];
+    document.getElementById(id + "Val").textContent = values[id] + "%";
+  });
+}
+sliders.forEach(id => {
+  document.getElementById(id).addEventListener("input", () => rebalanceSliders(id));
+});
+
+let currentChatId = null;
+let currentTrace = null;
+
+// Best-effort model -> direct-provider mapping, for the "add a key to use
+// this pick" nudge only — NOT used to filter/change what gets recommended.
+// Open-weight models (llama/qwen) have no single direct provider; a gateway
+// key (OpenRouter etc.) can reach them, so any gateway credential counts.
+const MODEL_PROVIDER = {
+  "mistral-small": "mistral", "codestral": "mistral", "mistral-large": "mistral",
+  "phi-4": "microsoft",
+  "gpt-4o-mini": "openai", "gpt-4o": "openai", "gpt-5.4-mini": "openai", "gpt-5.4": "openai",
+  "claude-haiku-4.5": "anthropic", "claude-sonnet-4.5": "anthropic",
+  "gemini-2.5-flash": "google",
+  "kimi-k2": "moonshot",
+};
+function hasKeyFor(modelName) {
+  const providerId = MODEL_PROVIDER[modelName];
+  if (providerId && byok.getCredential(providerId)) return true;
+  return byok.listGateways().some(g => byok.getCredential(g.id));
+}
+
+function renderResult(data, chatId, vote, feeInfo) {
+  currentChatId = chatId;
+  currentTrace = data;
+
+  const resultEl = document.getElementById("result");
+  document.getElementById("chosenModel").textContent = data.chosen
+    ? "→ " + data.chosen
+    : "No model matched your filters";
+  document.getElementById("explanationText").textContent = data.explanation || "";
+
+  const feeNoteEl = document.getElementById("feeNote");
+  if (feeInfo) {
+    feeNoteEl.textContent = feeInfo.reset
+      ? `Charged $${ROUTING_FEE.toFixed(2)} routing fee (demo). Balance hit $0 — reset to $${STARTING_BALANCE.toFixed(2)} for the demo.`
+      : `Charged $${ROUTING_FEE.toFixed(2)} routing fee (demo, not your token cost — that goes to your own provider via BYOK).`;
+  } else {
+    feeNoteEl.textContent = "";
+  }
+
+  const accessNoteEl = document.getElementById("accessNote");
+  if (data.chosen && !hasKeyFor(data.chosen)) {
+    const providerId = MODEL_PROVIDER[data.chosen];
+    const providerLabel = providerId
+      ? (byok.listDirectProviders().find(p => p.id === providerId) || {}).label
+      : null;
+    accessNoteEl.innerHTML = providerLabel
+      ? `Add an <a href="#" id="accessNoteLink">${providerLabel} key</a> in Settings to use this pick directly.`
+      : `Add a <a href="#" id="accessNoteLink">gateway key</a> (e.g. OpenRouter) in Settings to use this pick directly.`;
+    accessNoteEl.style.display = "block";
+    document.getElementById("accessNoteLink").addEventListener("click", (ev) => {
+      ev.preventDefault();
+      showView("settings");
+    });
+  } else {
+    accessNoteEl.style.display = "none";
+  }
+
+  document.getElementById("eligibleList").innerHTML = (data.eligible_models || [])
+    .map(m => `<span class="pill">${m}</span>`).join("") || "<span class=\"pill\">none</span>";
+
+  const excluded = data.excluded || [];
+  document.getElementById("excludedLabel").style.display = excluded.length ? "block" : "none";
+  document.getElementById("excludedList").innerHTML = excluded
+    .map(e => `<div class="excluded-item"><b>${e.model}</b> — ${exclusionReasonPhrases(e).join(" and ") || "excluded"}</div>`).join("");
+
+  document.getElementById("thumbUp").classList.toggle("active-up", vote === "thumbs_up");
+  document.getElementById("thumbDown").classList.toggle("active-down", vote === "thumbs_down");
+  document.getElementById("feedbackSent").textContent = vote ? "Thanks for the feedback." : "";
+  document.getElementById("thumbUp").disabled = data.chosen === null;
+  document.getElementById("thumbDown").disabled = data.chosen === null;
+
+  resultEl.style.display = "block";
+}
+
+function submitVote(outcome) {
+  if (!currentChatId || !currentTrace || currentTrace.chosen === null) return;
+  document.getElementById("thumbUp").classList.toggle("active-up", outcome === "thumbs_up");
+  document.getElementById("thumbDown").classList.toggle("active-down", outcome === "thumbs_down");
+  document.getElementById("feedbackSent").textContent = "Thanks for the feedback.";
+  saveChatVote(currentChatId, outcome);
+}
+document.getElementById("thumbUp").addEventListener("click", () => submitVote("thumbs_up"));
+document.getElementById("thumbDown").addEventListener("click", () => submitVote("thumbs_down"));
+
+document.getElementById("submit").addEventListener("click", () => {
+  const errorEl = document.getElementById("errorText");
+  const resultEl = document.getElementById("result");
+  errorEl.textContent = "";
+  resultEl.style.display = "none";
+
+  const weights = {};
+  sliders.forEach(id => weights[id] = parseFloat(document.getElementById(id).value) / 100);
+  const query = isFreetextUnlocked() ? queryText.value.trim() : querySelect.value;
+  const euOnly = document.getElementById("euOnly").checked;
+
+  let feeReset = false;
+  if (!isFreetextUnlocked()) {
+    localStorage.setItem(PRESET_TRIES_KEY, String(presetTries() + 1));
+    if (presetTries() >= PRESET_TRIES_REQUIRED) localStorage.setItem(FREETEXT_UNLOCKED_KEY, "1");
+    renderQueryInputState();
+  } else {
+    feeReset = chargeRoutingFee();
+  }
+
+  try {
+    const trace = route(ALL_MODELS, query, { weights, euOnly });
+    trace.explanation = explain(trace, ALL_MODELS, euOnly);
+    const chatId = Date.now();
+    const feeInfo = isFreetextUnlocked() ? { charged: true, reset: feeReset } : null;
+    renderResult(trace, chatId, null, feeInfo);
+    addChat(query, trace, chatId, feeInfo);
+  } catch (err) {
+    errorEl.textContent = err.message;
+  }
+});
+
+// ---------- boot ----------
+fetch("registry.json")
+  .then(r => r.json())
+  .then(models => { ALL_MODELS = models; })
+  .catch(() => {
+    document.getElementById("errorText").textContent = "Failed to load registry.json";
+  });
+
+renderChatList();
+renderSettings();
+</script>
+</body>
+</html>

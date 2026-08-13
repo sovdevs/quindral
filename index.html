@@ -9,7 +9,7 @@
     --forest: #1f3d2e;
     --river: #16324f;
     --bg: #f6f7f4;
-    --card: #ffffff;
+    --card: #f4f2ec;
     --text: #1a1f1c;
     --muted: #5c6b62;
     --accent: #2f6b4f;
@@ -51,7 +51,16 @@
     object-fit: cover;
     flex-shrink: 0;
   }
-  .logo-row span { font-weight: 700; font-size: 1.1rem; letter-spacing: -0.01em; }
+  .brand-gold {
+    font-family: Georgia, "Times New Roman", "Palatino Linotype", serif;
+    font-weight: 700;
+    background: linear-gradient(180deg, #f5d78e, #c99a3e 55%, #9c7526);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: #c99a3e; /* fallback for browsers without background-clip:text */
+  }
+  .logo-row span { font-size: 1.15rem; letter-spacing: 0.01em; }
 
   .new-chat-btn {
     display: flex;
@@ -119,11 +128,16 @@
   .sidebar-nav-btn:hover, .sidebar-nav-btn.active { background: var(--sidebar-hover); }
 
   /* --- Main content --- */
+  /* Fixed full-page background (same "cover" treatment as before), but with
+     a FLAT translucent dark tint instead of a gradient that fades to cream —
+     that fade had a hard edge at a fixed viewport height that happened to
+     cut across the "A SMART AI ROUTER" lettering. A flat tint has no edge,
+     so nothing in the artwork ever gets cropped or sliced. */
   #content {
     flex: 1;
     min-width: 0;
     background:
-      linear-gradient(180deg, rgba(6,10,8,0.82), rgba(10,16,13,0.93) 60%, var(--bg) 92%),
+      linear-gradient(rgba(6,10,8,0.6), rgba(6,10,8,0.6)),
       url("/logo.png") center 15% / cover no-repeat fixed;
     min-height: 100vh;
   }
@@ -133,12 +147,12 @@
     background: transparent;
     color: #fff;
   }
-  header h1 { margin: 0 0 0.4rem; font-size: 1.7rem; letter-spacing: -0.02em; }
-  header p { margin: 0; opacity: 0.85; font-size: 0.95rem; }
+  header h1 { margin: 0 0 0.4rem; font-size: 1.7rem; letter-spacing: -0.02em; text-shadow: 0 2px 10px rgba(0,0,0,0.6); }
+  header p { margin: 0; opacity: 0.9; font-size: 0.95rem; text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
 
   main {
     max-width: 720px;
-    margin: -1.6rem auto 3rem;
+    margin: 1.5rem auto 3rem;
     padding: 0 1.5rem;
   }
   .view { display: none; }
@@ -147,7 +161,7 @@
   .card {
     background: var(--card);
     border-radius: 14px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
     padding: 1.75rem;
     margin-bottom: 1.5rem;
   }
@@ -214,6 +228,18 @@
     padding: 0.25rem 0.7rem;
     font-size: 0.85rem;
   }
+  .pill-run-btn {
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 0.3rem;
+  }
+  .pill-run-btn:hover { text-decoration: underline; }
+  .pill-run-btn:disabled { opacity: 0.5; cursor: default; text-decoration: none; }
   .excluded-item {
     font-size: 0.85rem;
     color: var(--muted);
@@ -223,15 +249,105 @@
   .excluded-item b { color: var(--text); }
   .error { color: #a33; }
 
+  .net-log-item {
+    font-size: 0.82rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid #f0f1ee;
+    display: flex;
+    gap: 0.6rem;
+    align-items: baseline;
+  }
+  .net-log-badge {
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .net-log-badge.server { background: #eceeeb; color: var(--muted); }
+  .net-log-badge.provider { background: #e2f0e6; color: var(--accent); }
+  .net-log-time { color: var(--muted); font-size: 0.75rem; flex-shrink: 0; }
+  .net-log-empty { color: var(--muted); font-size: 0.85rem; font-style: italic; }
+
+  .feedback-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-top: 1.2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eceeeb;
+  }
+  .feedback-label { font-size: 0.8rem; color: var(--muted); margin-right: 0.2rem; }
+  .thumb-btn {
+    background: transparent;
+    border: 1px solid #d7ddd5;
+    border-radius: 8px;
+    padding: 0.35rem 0.7rem;
+    font-size: 1rem;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .thumb-btn:hover { background: #eceeeb; }
+  .thumb-btn.active-up { background: #e2f0e6; border-color: var(--accent); }
+  .thumb-btn.active-down { background: #f5e2e2; border-color: #a33; }
+  .feedback-sent { font-size: 0.78rem; color: var(--muted); margin-left: 0.3rem; }
+
+  /* Response-quality vote — deliberately a different shape/fill than
+     .thumb-btn (routing-decision vote) so the two controls read as
+     different questions, not duplicates. */
+  .response-vote-btn {
+    border: none;
+    border-radius: 999px;
+    padding: 0.4rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: #fff;
+    opacity: 0.55;
+  }
+  .response-vote-btn:hover { opacity: 0.8; }
+  .response-vote-btn.up { background: var(--accent); }
+  .response-vote-btn.down { background: #a33; }
+  .response-vote-btn.active { opacity: 1; }
+  .response-comment-box {
+    width: 100%;
+    margin-top: 0.5rem;
+    padding: 0.6rem;
+    border-radius: 8px;
+    border: 1px solid #d7ddd5;
+    font: inherit;
+    resize: vertical;
+  }
+  .run-entry { margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid #eceeeb; }
+  .run-entry-model { font-weight: 600; }
+  .run-entry-text { margin-top: 0.5rem; white-space: pre-wrap; }
+
   /* --- Settings view --- */
   .settings-title { margin: 0 0 0.3rem; font-size: 1.2rem; }
   .settings-sub { color: var(--muted); font-size: 0.85rem; margin: 0 0 1.4rem; }
+  .settings-sub a { color: var(--accent); }
+  .settings-section-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    font-weight: 700;
+    margin: 1.4rem 0 0.3rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eceeeb;
+  }
+  .settings-section-label:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
   .key-row { margin-bottom: 1.1rem; }
   .key-row label {
     display: block;
     font-size: 0.85rem;
     font-weight: 600;
     margin-bottom: 0.35rem;
+  }
+  .key-row .base-url-input {
+    margin-top: 0.4rem;
+    font-size: 0.85rem;
   }
   .key-status {
     font-size: 0.78rem;
@@ -252,7 +368,7 @@
 <nav id="sidebar">
   <div class="logo-row">
     <img class="logo-img" src="/logo.png" alt="Quindral logo">
-    <span>Quindral</span>
+    <span class="brand-gold">Quindral</span>
   </div>
 
   <button class="new-chat-btn" id="newChatBtn">+ New chat</button>
@@ -261,6 +377,9 @@
   <div id="chatList"></div>
 
   <div class="sidebar-footer">
+    <div class="sidebar-label" id="balanceLabel" title="Fictional balance, for demo purposes — no real payment yet">Demo balance: $5.00</div>
+    <button class="sidebar-nav-btn" id="exportBtn">⬇ Export chats</button>
+    <button class="sidebar-nav-btn" id="feedbackBtn">💬 Feedback</button>
     <button class="sidebar-nav-btn" id="settingsBtn">⚙ Settings</button>
   </div>
 </nav>
@@ -268,7 +387,7 @@
 <div id="content">
 
 <header>
-  <h1>Quindral</h1>
+  <h1 class="brand-gold">Quindral</h1>
   <p>Transparent multi-criteria LLM routing</p>
 </header>
 
@@ -277,29 +396,32 @@
   <div class="view active" id="chatView">
     <div class="card">
       <select id="query">
+        <option value="prove that there are infinitely many primes">Reasoning — prove infinitude of primes (try the sliders)</option>
+        <option value="plan a strategy considering multiple tradeoffs">Reasoning — multi-step strategy planning (try the sliders)</option>
+        <option value="describe what's happening in this photo">Vision — describe a photo (try the sliders)</option>
         <option value="write a python function to reverse a linked list">Code — reverse a linked list (Python)</option>
         <option value="fix this bug in my javascript code">Code — fix a JavaScript bug</option>
-        <option value="describe what's happening in this photo">Vision — describe a photo</option>
         <option value="what is the capital of spain?">Simple — capital of Spain</option>
         <option value="what time is it in tokyo">Simple — time in Tokyo</option>
-        <option value="prove that there are infinitely many primes">Reasoning — prove infinitude of primes</option>
-        <option value="plan a strategy considering multiple tradeoffs">Reasoning — multi-step strategy planning</option>
         <option value="summarize this entire 300-page report and extract key points">Long context — summarize a long report</option>
         <option value="translate this book into German">Edge case — translate a book (no matching route)</option>
       </select>
+      <p class="settings-sub" id="unlockHint" style="margin:0.5rem 0 0; font-size:0.8rem;"></p>
+
+      <textarea id="queryText" rows="2" placeholder="Type your own query…" style="display:none; width:100%; margin-top:0.8rem; padding:0.8rem; border-radius:8px; border:1px solid #d7ddd5; font:inherit; resize:vertical;"></textarea>
 
       <div class="controls">
         <div class="slider-group">
-          <label>Cost <span id="costVal">0.6</span></label>
-          <input type="range" id="cost" min="0" max="1" step="0.05" value="0.6">
+          <label>Cost <span id="costVal">60%</span></label>
+          <input type="range" id="cost" min="0" max="100" step="1" value="60">
         </div>
         <div class="slider-group">
-          <label>Environment <span id="envVal">0.3</span></label>
-          <input type="range" id="env" min="0" max="1" step="0.05" value="0.3">
+          <label>Environment <span id="envVal">30%</span></label>
+          <input type="range" id="env" min="0" max="100" step="1" value="30">
         </div>
         <div class="slider-group">
-          <label>Speed <span id="latencyVal">0.1</span></label>
-          <input type="range" id="latency" min="0" max="1" step="0.05" value="0.1">
+          <label>Speed <span id="latencyVal">10%</span></label>
+          <input type="range" id="latency" min="0" max="100" step="1" value="10">
         </div>
       </div>
 
@@ -308,18 +430,42 @@
         <label for="euOnly">EU-only (privacy)</label>
       </div>
 
+      <div class="toggle-row">
+        <input type="checkbox" id="keyOnly">
+        <label for="keyOnly">Only models I have a key for</label>
+      </div>
+
       <button class="primary" id="submit">Route query</button>
     </div>
 
     <div class="card result" id="result">
       <div class="chosen-model" id="chosenModel"></div>
       <p class="explanation" id="explanationText"></p>
+      <p class="settings-sub" id="feeNote" style="margin:0 0 0.8rem; font-size:0.78rem;"></p>
+      <p class="settings-sub" id="accessNote" style="margin:0 0 0.8rem; font-size:0.78rem; display:none;"></p>
 
       <div class="trace-label">Eligible models</div>
       <div class="pill-list" id="eligibleList"></div>
 
       <div class="trace-label" id="excludedLabel">Excluded</div>
       <div id="excludedList"></div>
+
+      <div class="feedback-row">
+        <span class="feedback-label">Was this the right call?</span>
+        <button class="thumb-btn" id="thumbUp" title="Good routing decision">👍</button>
+        <button class="thumb-btn" id="thumbDown" title="Bad routing decision">👎</button>
+        <span class="feedback-sent" id="feedbackSent"></span>
+      </div>
+
+      <div id="runRow" style="margin-top:1rem; display:none;">
+        <button class="primary" id="runBtn">Run on this model</button>
+      </div>
+      <div class="error" id="runError" style="margin-top:0.6rem;"></div>
+
+      <!-- Stacked run entries — one per model actually run for this prompt.
+           Never overwritten: running a second/third model appends here,
+           each with its own independent rate/comment/try-better controls. -->
+      <div id="runResponseList"></div>
     </div>
 
     <div class="error" id="errorText"></div>
@@ -331,141 +477,885 @@
       <h2 class="settings-title">Settings</h2>
       <p class="settings-sub">
         Bring your own API keys. Keys are stored only in this browser's local storage —
-        they are never sent to the Quindral server, only used client-side when calling a
-        provider directly.
+        they are never sent to the Quindral server. Powered by
+        <a href="https://github.com/" target="_blank" rel="noopener">byok.js</a>, a small
+        reusable credential module shared across projects.
       </p>
-      <div id="keyFields"></div>
+
+      <div class="settings-section-label">Direct provider keys</div>
+      <p class="settings-sub" style="margin-bottom: 0.8rem;">One key per provider's native API.</p>
+      <div id="directKeyFields"></div>
+
+      <div class="settings-section-label">Gateway keys</div>
+      <p class="settings-sub" style="margin-bottom: 0.8rem;">
+        Aggregators like OpenRouter cover many providers/models through a single key + endpoint.
+        A gateway key is used as a fallback for any provider without its own direct key above.
+      </p>
+      <div id="gatewayKeyFields"></div>
+
       <button class="primary" id="saveKeysBtn">Save keys</button>
       <div class="saved-note" id="savedNote">Saved.</div>
+    </div>
+
+    <div class="card">
+      <h2 class="settings-title">How do I know you can't see my key?</h2>
+      <p class="settings-sub">
+        Don't take our word for it — this app makes two kinds of network request, and you can watch
+        the difference live: requests to <b>Quindral's own server</b> (routing decisions, feedback,
+        pricing lookups), and requests <b>directly from this browser tab to your model provider</b>
+        (e.g. api.openai.com) using your saved key. Your key is only ever used in the second kind —
+        it never touches Quindral's server, in any request, full stop.
+      </p>
+      <p class="settings-sub">
+        <b>What Quindral's server does see:</b> your prompt text, and the model's response text, are
+        sent to and stored on our server when you rate a response or it gets logged — this is real
+        content retention, used to evaluate model quality over time (see the Feedback page), not
+        just routing metadata. This is a deliberate tradeoff, not an accident, and it's new: your key
+        never leaves the browser, but as of this build, response content now does. If that's not
+        something you want, don't rate responses or run real queries here yet.
+      </p>
+      <p class="settings-sub">
+        Every request this page has made this session is logged below, in order, labeled by which
+        kind it is and what it carries. You can verify this independently any time with your
+        browser's DevTools → Network tab; this list is just the same information without needing
+        DevTools.
+      </p>
+      <div id="networkLog"></div>
+    </div>
+  </div>
+
+  <!-- Feedback log view — transparency: shows every HITL signal actually recorded -->
+  <div class="view" id="feedbackView">
+    <div class="card">
+      <h2 class="settings-title">Feedback log</h2>
+      <p class="settings-sub">
+        Every routing vote, response-quality vote, and auto-escalation gets logged —
+        this is that log, unfiltered, so it's visible that feedback is actually being recorded
+        (see SPEC.md "Phase 1: HITL feedback signal").
+      </p>
+      <div id="feedbackList"></div>
     </div>
   </div>
 </main>
 
 </div>
 
-<script>
-const PROVIDERS = [
-  { id: "openai", label: "OpenAI" },
-  { id: "anthropic", label: "Anthropic" },
-  { id: "google", label: "Google (Gemini)" },
-  { id: "mistral", label: "Mistral" },
-  { id: "moonshot", label: "Moonshot (Kimi)" },
-];
+<script type="module">
+import { BYOKStore } from "./byok.js";
+import { callModel, isProviderWired, isDegenerateResponse } from "./providers.js";
 
-const CHATS_KEY = "quindral_chats";
-const KEYS_KEY = "quindral_api_keys";
+// No accounts/auth in Quindral yet -> single shared "default" user (byok.js's
+// built-in fallback). Once login exists, pass the real user id here instead:
+//   new BYOKStore({ userId: currentUser.id })
+// and each user's keys are automatically isolated with no migration needed.
+const byok = new BYOKStore();
+
+// Verifiable trust log for BYOK: every request this tab makes, in order,
+// labeled "server" (Quindral's own backend — never carries your key) or
+// "provider" (straight from this browser to your model provider, using
+// your saved key, bypassing Quindral entirely). In-memory only, per-session
+// — not persisted, this is a live audit trail, not a permanent record.
+const NETWORK_LOG = [];
+function logNetworkCall(kind, destination, note) {
+  NETWORK_LOG.push({ time: new Date(), kind, destination, note });
+  if (document.getElementById("settingsView").classList.contains("active")) renderNetworkLog();
+}
+function renderNetworkLog() {
+  const el = document.getElementById("networkLog");
+  if (!NETWORK_LOG.length) {
+    el.innerHTML = '<div class="net-log-empty">No requests yet this session — route a query to see this fill in.</div>';
+    return;
+  }
+  el.innerHTML = NETWORK_LOG.slice().reverse().map(entry => `
+    <div class="net-log-item">
+      <span class="net-log-time">${entry.time.toLocaleTimeString()}</span>
+      <span class="net-log-badge ${entry.kind}">${entry.kind === "provider" ? "🔓 direct to provider" : "quindral server"}</span>
+      <span>${entry.destination} — ${entry.note}</span>
+    </div>
+  `).join("");
+}
+
+const CLIENT_ID_KEY = "quindral_client_id";
+
+// Anonymous per-browser identity for feedback voting ("one vote per prompt
+// per user") — no accounts yet, so a random ID stored in this browser stands
+// in for a user id. Swap for a real account id later; same pattern as
+// byok.js's userId, just a different storage key since these are unrelated
+// concepts (credential scoping vs. vote identity).
+function getClientId() {
+  let id = localStorage.getItem(CLIENT_ID_KEY);
+  if (!id) {
+    id = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2));
+    localStorage.setItem(CLIENT_ID_KEY, id);
+  }
+  return id;
+}
+const CLIENT_ID = getClientId();
 
 // ---------- view switching ----------
 function showView(name) {
   document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
   document.getElementById(name + "View").classList.add("active");
   document.getElementById("settingsBtn").classList.toggle("active", name === "settings");
+  document.getElementById("feedbackBtn").classList.toggle("active", name === "feedback");
+  if (name === "feedback") renderFeedbackList();
+  if (name === "settings") renderNetworkLog();
 }
 document.getElementById("settingsBtn").addEventListener("click", () => showView("settings"));
+
+const OUTCOME_LABELS = {
+  thumbs_up: "👍 routing", thumbs_down: "👎 routing",
+  response_thumbs_up: "👍 response", response_thumbs_down: "👎 response",
+  escalated: "⤴ auto-escalated", accepted: "✓ accepted", regenerated: "↻ regenerated", continued: "→ continued",
+};
+function escapeHtml(s) {
+  const div = document.createElement("div");
+  div.textContent = s;
+  return div.innerHTML;
+}
+function truncate(s, n) {
+  return s.length > n ? s.slice(0, n) + "…" : s;
+}
+
+async function renderFeedbackList() {
+  const listEl = document.getElementById("feedbackList");
+  listEl.textContent = "Loading…";
+  try {
+    logNetworkCall("server", "/outcomes", "loading the feedback log — no key involved (you only see your own prompt/response text, not other users')");
+    const res = await fetch("/outcomes", { headers: { "X-Quindral-Client-Id": CLIENT_ID } });
+    const data = await res.json();
+    const records = data.records || [];
+    if (!records.length) {
+      listEl.innerHTML = '<div class="chat-item-empty">No feedback recorded yet</div>';
+      return;
+    }
+    listEl.innerHTML = records.map(r => {
+      const when = r.timestamp ? new Date(r.timestamp * 1000).toLocaleString() : "";
+      const label = OUTCOME_LABELS[r.outcome] || r.outcome;
+      const comment = r.comment ? `<div style="font-style:italic; margin-top:0.2rem;">"${escapeHtml(r.comment)}"</div>` : "";
+      const usage = r.usage ? `<div style="font-size:0.75rem; color:var(--muted);">${r.usage.input_tokens ?? "?"} in / ${r.usage.output_tokens ?? "?"} out tokens${r.usage.actual_cost != null ? ` · $${r.usage.actual_cost.toFixed(5)}` : ""}</div>` : "";
+      // Native <details>/<summary> — expand/collapse with zero custom JS.
+      const promptResponse = (r.prompt_text || r.response_text) ? `
+        <details style="margin-top:0.3rem;">
+          <summary style="cursor:pointer; color:var(--muted); font-size:0.78rem;">${escapeHtml(truncate(r.prompt_text || "(no prompt)", 80))}</summary>
+          <div style="margin-top:0.4rem; padding:0.5rem; background:#fff; border-radius:6px; font-size:0.8rem;">
+            <div><b>Prompt:</b> ${escapeHtml(r.prompt_text || "(none)")}</div>
+            <div style="margin-top:0.4rem;"><b>Response:</b> <span style="white-space:pre-wrap;">${escapeHtml(r.response_text || "(none)")}</span></div>
+          </div>
+        </details>` : "";
+      return `<div class="excluded-item"><b>${label}</b> — ${escapeHtml(r.model_used || "?")} (${escapeHtml(r.route_chosen || "?")} route) <span style="color:var(--muted); font-size:0.75rem;">${when}</span>${comment}${usage}${promptResponse}</div>`;
+    }).join("");
+  } catch {
+    listEl.textContent = "Couldn't load feedback log (offline?).";
+  }
+}
+document.getElementById("feedbackBtn").addEventListener("click", () => showView("feedback"));
 document.getElementById("newChatBtn").addEventListener("click", () => {
   showView("chat");
+  // Blank slate, not whatever was last shown (typed text or a reopened
+  // chat's query) — the select still defaults to its first preset option,
+  // so new users always land on a usable starting point.
+  queryText.value = "";
+  querySelect.selectedIndex = 0;
   document.getElementById("result").style.display = "none";
   document.getElementById("errorText").textContent = "";
+  document.getElementById("chosenModel").textContent = "";
+  document.getElementById("explanationText").textContent = "";
+  document.getElementById("eligibleList").innerHTML = "";
+  document.getElementById("excludedList").innerHTML = "";
+  document.getElementById("thumbUp").classList.remove("active-up");
+  document.getElementById("thumbDown").classList.remove("active-down");
+  document.getElementById("feedbackSent").textContent = "";
+  document.getElementById("feeNote").textContent = "";
+  document.getElementById("accessNote").style.display = "none";
+  document.getElementById("runRow").style.display = "none";
+  document.getElementById("runError").textContent = "";
+  currentRuns = [];
+  renderRunEntries();
+  currentPromptId = null;
+  currentTrace = null;
+  currentQuery = null;
   setActiveChatItem(null);
 });
 
-// ---------- chat history (localStorage) ----------
-function loadChats() {
-  try { return JSON.parse(localStorage.getItem(CHATS_KEY)) || []; }
-  catch { return []; }
+// ---------- chat history (server-backed, via GET /outcomes) ----------
+// Previously localStorage — replaced because it was fundamentally fragile:
+// scoped per browser origin/port (switching ports "lost" all history),
+// prone to stale-closure bugs, and never durable. The server now logs the
+// full routing trace too (see api.py's "routed" outcome), so /outcomes has
+// everything needed to reconstruct "Recent" — no client-side store at all.
+async function fetchOutcomeRecords() {
+  const res = await fetch("/outcomes", { headers: { "X-Quindral-Client-Id": CLIENT_ID } });
+  const data = await res.json();
+  return data.records || [];
 }
-function saveChats(chats) {
-  localStorage.setItem(CHATS_KEY, JSON.stringify(chats.slice(0, 30)));
+
+// Reconstructs chat-like groups from the flat outcome-record stream,
+// keyed by the server-issued prompt_id. A "routed" record anchors each
+// group (routing decision); accepted/escalated records become run entries;
+// response_thumbs_* records attach to the most recent run on that model.
+function groupRecordsIntoChats(records) {
+  const groups = new Map();
+  const chronological = [...records].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  for (const r of chronological) {
+    if (!r.prompt_id) continue;
+    if (!groups.has(r.prompt_id)) {
+      groups.set(r.prompt_id, { id: r.prompt_id, query: null, result: null, vote: null, runs: [], timestamp: 0 });
+    }
+    const g = groups.get(r.prompt_id);
+    g.timestamp = Math.max(g.timestamp, r.timestamp || 0);
+    if (r.outcome === "routed") {
+      g.query = r.prompt_text;
+      const td = r.trace_detail || {};
+      g.result = {
+        classified_as: r.route_chosen,
+        chosen: r.model_used,
+        eligible_models: td.eligible_models || [],
+        excluded: td.excluded || [],
+        binding_criterion: td.binding_criterion || null,
+        explanation: td.explanation || "",
+        relaxed_filters: td.relaxed_filters || [],
+      };
+    } else if (r.outcome === "thumbs_up" || r.outcome === "thumbs_down") {
+      g.vote = r.outcome;
+    } else if (r.outcome === "accepted" || r.outcome === "escalated") {
+      g.runs.push({
+        model: r.model_used, text: r.response_text, escalated: r.outcome === "escalated",
+        previousModel: null, usage: r.usage, responseVote: null, responseComment: null,
+      });
+    } else if (r.outcome === "response_thumbs_up" || r.outcome === "response_thumbs_down") {
+      const run = [...g.runs].reverse().find(x => x.model === r.model_used);
+      if (run) {
+        run.responseVote = r.outcome;
+        if (r.comment) run.responseComment = r.comment;
+      }
+    }
+  }
+  return [...groups.values()]
+    .filter(g => g.query) // only prompts with a "routed" record actually reconstruct
+    .sort((a, b) => b.timestamp - a.timestamp);
 }
+
 function setActiveChatItem(id) {
   document.querySelectorAll(".chat-item").forEach(el => {
     el.classList.toggle("active", el.dataset.id === String(id));
   });
 }
-function renderChatList() {
-  const chats = loadChats();
+
+async function renderChatList() {
   const listEl = document.getElementById("chatList");
-  if (!chats.length) {
+  let groups;
+  try {
+    groups = groupRecordsIntoChats(await fetchOutcomeRecords());
+  } catch {
+    listEl.innerHTML = '<div class="chat-item-empty">Couldn\'t load history (offline?)</div>';
+    return;
+  }
+  if (!groups.length) {
     listEl.innerHTML = '<div class="chat-item-empty">No chats yet</div>';
     return;
   }
-  listEl.innerHTML = chats.map(c =>
-    `<div class="chat-item" data-id="${c.id}" title="${c.query}">${c.query}</div>`
+  listEl.innerHTML = groups.map(g =>
+    `<div class="chat-item" data-id="${g.id}" title="${escapeHtml(g.query)}">${escapeHtml(g.query)}</div>`
   ).join("");
   listEl.querySelectorAll(".chat-item").forEach(el => {
-    el.addEventListener("click", () => {
-      const chat = chats.find(c => String(c.id) === el.dataset.id);
+    el.addEventListener("click", async () => {
+      // Re-fetch fresh rather than reusing the `groups` this list was
+      // rendered with — the exact stale-data bug hit with localStorage
+      // (list rendered once, then runs/votes update the server without
+      // re-rendering the sidebar) applies here too if we don't.
+      const freshGroups = groupRecordsIntoChats(await fetchOutcomeRecords());
+      const chat = freshGroups.find(g => g.id === el.dataset.id);
       if (chat) {
         showView("chat");
-        renderResult(chat.result);
+        if (isFreetextUnlocked()) {
+          queryText.value = chat.query;
+        } else if ([...querySelect.options].some(o => o.value === chat.query)) {
+          querySelect.value = chat.query;
+        } else {
+          queryText.value = chat.query;
+        }
+        renderResult(chat.result, chat.id, chat.vote, null, chat.query);
+        applyStoredRuns(chat.runs);
         setActiveChatItem(chat.id);
       }
     });
   });
 }
-function addChat(query, result) {
-  const chats = loadChats();
-  chats.unshift({ id: Date.now(), query, result });
-  saveChats(chats);
-  renderChatList();
-  setActiveChatItem(chats[0].id);
-}
 
 // ---------- BYOK settings ----------
-function loadKeys() {
-  try { return JSON.parse(localStorage.getItem(KEYS_KEY)) || {}; }
-  catch { return {}; }
-}
 function renderSettings() {
-  const keys = loadKeys();
-  const container = document.getElementById("keyFields");
-  container.innerHTML = PROVIDERS.map(p => `
-    <div class="key-row">
-      <label for="key-${p.id}">${p.label} API key</label>
-      <input type="password" id="key-${p.id}" placeholder="sk-…" value="${keys[p.id] || ""}">
-      <div class="key-status ${keys[p.id] ? "set" : ""}" id="status-${p.id}">
-        ${keys[p.id] ? "Key saved in this browser" : "Not set"}
+  const directContainer = document.getElementById("directKeyFields");
+  directContainer.innerHTML = byok.listDirectProviders().map(p => {
+    const cred = byok.getCredential(p.id);
+    const isSet = cred && cred.type === "direct";
+    return `
+      <div class="key-row">
+        <label for="direct-${p.id}">${p.label} API key</label>
+        <input type="password" id="direct-${p.id}" placeholder="sk-…" value="${isSet ? cred.api_key : ""}">
+        <div class="key-status ${isSet ? "set" : ""}">${isSet ? "Key saved in this browser" : "Not set"}</div>
       </div>
-    </div>
-  `).join("");
+    `;
+  }).join("");
+
+  const gatewayContainer = document.getElementById("gatewayKeyFields");
+  gatewayContainer.innerHTML = byok.listGateways().map(g => {
+    const cred = byok.getCredential(g.id);
+    const isSet = cred && cred.type === "gateway";
+    return `
+      <div class="key-row">
+        <label for="gateway-${g.id}">${g.label} API key</label>
+        <input type="password" id="gateway-${g.id}" placeholder="sk-…" value="${isSet ? cred.api_key : ""}">
+        <input type="text" class="base-url-input" id="gateway-${g.id}-url" placeholder="Base URL"
+               value="${isSet ? cred.base_url : g.base_url}">
+        <div class="key-status ${isSet ? "set" : ""}">${isSet ? "Key saved in this browser" : "Not set"}</div>
+      </div>
+    `;
+  }).join("");
 }
+
 document.getElementById("saveKeysBtn").addEventListener("click", () => {
-  const keys = {};
-  PROVIDERS.forEach(p => {
-    const val = document.getElementById(`key-${p.id}`).value.trim();
-    if (val) keys[p.id] = val;
+  byok.listDirectProviders().forEach(p => {
+    const val = document.getElementById(`direct-${p.id}`).value.trim();
+    if (val) byok.setCredential(p.id, { type: "direct", api_key: val });
+    else byok.removeCredential(p.id);
   });
-  localStorage.setItem(KEYS_KEY, JSON.stringify(keys));
+  byok.listGateways().forEach(g => {
+    const val = document.getElementById(`gateway-${g.id}`).value.trim();
+    const baseUrl = document.getElementById(`gateway-${g.id}-url`).value.trim();
+    if (val && baseUrl) byok.setCredential(g.id, { type: "gateway", api_key: val, base_url: baseUrl });
+    else byok.removeCredential(g.id);
+  });
   renderSettings();
   const note = document.getElementById("savedNote");
   note.style.display = "block";
   setTimeout(() => note.style.display = "none", 2000);
 });
 
-// ---------- routing ----------
-const sliders = ["cost", "env", "latency"];
-sliders.forEach(id => {
-  const el = document.getElementById(id);
-  const out = document.getElementById(id + "Val");
-  el.addEventListener("input", () => out.textContent = el.value);
+// ---------- query input ----------
+// Free-text unlocks after PRESET_TRIES_REQUIRED preset submissions, so the
+// two input modes never show at once (was confusing side by side). Tally
+// and unlock persist in localStorage so it doesn't reset on reload.
+const PRESET_TRIES_REQUIRED = 5;
+const PRESET_TRIES_KEY = "quindral_preset_tries";
+const FREETEXT_UNLOCKED_KEY = "quindral_freetext_unlocked";
+const queryText = document.getElementById("queryText");
+const querySelect = document.getElementById("query");
+const unlockHint = document.getElementById("unlockHint");
+
+function presetTries() { return parseInt(localStorage.getItem(PRESET_TRIES_KEY) || "0", 10); }
+function isFreetextUnlocked() { return localStorage.getItem(FREETEXT_UNLOCKED_KEY) === "1"; }
+
+function renderQueryInputState() {
+  if (isFreetextUnlocked()) {
+    querySelect.style.display = "none";
+    unlockHint.textContent = "";
+    queryText.style.display = "block";
+  } else {
+    querySelect.style.display = "block";
+    queryText.style.display = "none";
+    const remaining = PRESET_TRIES_REQUIRED - presetTries();
+    unlockHint.textContent = `Try ${remaining} more preset${remaining === 1 ? "" : "s"} to unlock typing your own query.`;
+  }
+}
+renderQueryInputState();
+
+// ---------- demo balance (fictional — no real payment wired up yet) ----------
+// #4 monetization prototype: flat fee per own-prompt route, decoupled from
+// token cost (presets stay free). Deliberately NOT charged for BYOK's real
+// token spend — this fee is for the routing decision itself, not the tokens.
+const BALANCE_KEY = "quindral_demo_balance";
+const ROUTING_FEE = 0.02;
+const STARTING_BALANCE = 5.00;
+
+function getBalance() {
+  const stored = localStorage.getItem(BALANCE_KEY);
+  return stored === null ? STARTING_BALANCE : parseFloat(stored);
+}
+function renderBalance() {
+  document.getElementById("balanceLabel").textContent = `Demo balance: $${getBalance().toFixed(2)}`;
+}
+function chargeRoutingFee() {
+  let balance = getBalance() - ROUTING_FEE;
+  let reset = false;
+  if (balance <= 0) {
+    balance = STARTING_BALANCE;
+    reset = true;
+  }
+  localStorage.setItem(BALANCE_KEY, String(balance));
+  renderBalance();
+  return reset;
+}
+renderBalance();
+
+document.getElementById("exportBtn").addEventListener("click", async () => {
+  const groups = groupRecordsIntoChats(await fetchOutcomeRecords());
+  const blob = new Blob([JSON.stringify(groups, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "quindral_chats.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
 });
 
-function renderResult(data) {
+// ---------- routing ----------
+// Budget-allocator sliders: always sum to 100%, so the numbers read as
+// relative priority instead of independent 0-1 weights that looked maxed
+// out ("1.0") without conveying they were relative to each other.
+const sliders = ["cost", "env", "latency"];
+function rebalanceSliders(changedId) {
+  const values = {};
+  sliders.forEach(id => values[id] = parseFloat(document.getElementById(id).value));
+  const others = sliders.filter(id => id !== changedId);
+  const remaining = 100 - values[changedId];
+  const othersSum = others.reduce((s, id) => s + values[id], 0);
+  others.forEach(id => {
+    const share = othersSum > 0 ? values[id] / othersSum : 0.5;
+    values[id] = Math.round(remaining * share);
+  });
+  const drift = 100 - sliders.reduce((s, id) => s + values[id], 0);
+  values[others[others.length - 1]] += drift;
+  sliders.forEach(id => {
+    document.getElementById(id).value = values[id];
+    document.getElementById(id + "Val").textContent = values[id] + "%";
+  });
+}
+sliders.forEach(id => {
+  document.getElementById(id).addEventListener("input", () => rebalanceSliders(id));
+});
+
+let currentPromptId = null;
+let currentTrace = null;
+let currentQuery = null;
+let currentRuns = []; // stacked run entries for the current prompt — see renderRunEntries
+
+// Mirrors explain.py's CAPABILITY_PHRASING/_exclusion_reason_phrases — the
+// backend already renders a full sentence into data.explanation, this is
+// just for the per-model breakdown under "Excluded".
+// Best-effort model -> direct-provider mapping, for the "add a key to use
+// this pick" nudge only — NOT used to filter/change what gets recommended.
+// Open-weight models (llama/qwen) have no single direct provider; a gateway
+// key (OpenRouter etc.) can reach them, so any gateway credential counts.
+const MODEL_PROVIDER = {
+  "mistral-small": "mistral", "codestral": "mistral", "mistral-large": "mistral",
+  "phi-4": "microsoft",
+  "gpt-4o-mini": "openai", "gpt-4o": "openai", "gpt-5.4-mini": "openai", "gpt-5.4": "openai",
+  "claude-haiku-4.5": "anthropic", "claude-sonnet-4.5": "anthropic",
+  "gemini-2.5-flash": "google",
+  "kimi-k2": "moonshot",
+};
+function hasKeyFor(modelName) {
+  const providerId = MODEL_PROVIDER[modelName];
+  if (providerId && byok.getCredential(providerId)) return true;
+  return byok.listGateways().some(g => byok.getCredential(g.id));
+}
+
+// Escalation ladder per provider, newest/best first (EVALUATION.md: "next
+// best usually means NEWEST" — prefer the newest generation over an older
+// but larger sibling). Used both for SPEC.md Phase 3 auto-escalation
+// (degenerate response) and the user-triggered "Try a better model" button
+// (negative response vote). Only openai is wired for execution today.
+const PROVIDER_LADDER = {
+  openai: ["gpt-5.4", "gpt-5.4-mini", "gpt-4o", "gpt-4o-mini"],
+};
+
+// Best available alternative to `modelName` from the same provider that we
+// can actually execute (wired adapter + direct key) — newest first, current
+// model excluded. Returns null if there's nothing better available.
+function nextBestModel(modelName) {
+  const providerId = MODEL_PROVIDER[modelName];
+  const ladder = PROVIDER_LADDER[providerId] || [];
+  for (const candidate of ladder) {
+    if (candidate === modelName) continue;
+    if (resolveExecutionCredential(candidate)) return candidate;
+  }
+  return null;
+}
+
+async function fetchPricing(modelNames) {
+  logNetworkCall("server", "/pricing", `looking up ${modelNames.join(", ")}'s published rates — no key involved`);
+  const res = await fetch("/pricing", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ models: modelNames }),
+  });
+  return res.ok ? res.json() : {};
+}
+
+// promptText/responseText: retained server-side for a future offline
+// quality-judging pipeline (see outcome_log.py). This is real content
+// leaving the browser — the response in particular never used to (BYOK
+// calls go straight to the provider) — hence the explicit network-log entry
+// naming it, not folded into the generic "no key involved" note.
+// Returns the fetch promise (awaitable) so callers can wait for the write
+// to actually land before refreshing anything sourced from /outcomes (e.g.
+// renderChatList) — this used to be fire-and-forget, which raced ahead of
+// its own log write and could show a stale sidebar immediately after a run.
+function logImplicitOutcome(outcome, trace, modelUsed, weights, usage, promptText, responseText) {
+  logNetworkCall("server", "/outcome",
+    `logging "${outcome}" for quality signal — includes your prompt + the response text, no key`);
+  return fetch("/outcome", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      outcome,
+      route_chosen: trace.classified_as,
+      model_used: modelUsed,
+      criteria_weights_active: weights,
+      usage: usage || null,
+      prompt_text: promptText || null,
+      response_text: responseText || null,
+      // without these, /outcomes' per-user redaction (see api.py) can't
+      // tell this record is yours — it silently hid your own prompt/response
+      // text from you, the actual bug being fixed here
+      user_id: CLIENT_ID,
+      prompt_id: currentPromptId ? String(currentPromptId) : null,
+    }),
+  }).catch(() => {}); // best-effort — a failed log shouldn't block the UI
+}
+
+// Execution (actually calling the model) is being wired incrementally —
+// only a direct OpenAI key can run right now (see providers.js). Gateway
+// fallback and other providers come in later increments.
+function resolveExecutionCredential(modelName) {
+  const providerId = MODEL_PROVIDER[modelName];
+  if (!providerId || !isProviderWired(providerId)) return null;
+  const credential = byok.getCredential(providerId);
+  if (!credential || credential.type !== "direct") return null;
+  return { providerId, credential };
+}
+
+// Best-effort human-readable target for the network log — mirrors the URL
+// providers.js actually calls (see callOpenAI's default there).
+function providerDestination(providerId, credential) {
+  if (credential.base_url) return credential.base_url;
+  if (providerId === "openai") return "https://api.openai.com";
+  return providerId;
+}
+
+// "Only models I have a key for" checkbox — restricted to models that can
+// actually be RUN today (wired adapter + direct key), not just any saved
+// credential, so checking this box always leaves the Run button usable.
+function accessibleModelNames() {
+  return Object.keys(MODEL_PROVIDER).filter(name => resolveExecutionCredential(name) !== null);
+}
+
+const CAPABILITY_PHRASING = {
+  code: "generate or debug code",
+  vision: "understand images",
+  long_context: "handle very long documents",
+  reasoning: "work through complex multi-step reasoning",
+  factual: "reliably answer general knowledge questions",
+  web_search: "search the web for current information",
+};
+function exclusionReasonText(e) {
+  const reasons = [];
+  if (e.missing_capabilities && e.missing_capabilities.length) {
+    const phrases = e.missing_capabilities.map(c => CAPABILITY_PHRASING[c] || c);
+    reasons.push(`can't ${phrases.length === 1 ? phrases[0] : phrases.slice(0, -1).join(", ") + " or " + phrases[phrases.length - 1]}`);
+  }
+  if (e.not_eu_hosted) reasons.push("isn't hosted in the EU");
+  if (e.context_deficit) {
+    const d = e.context_deficit;
+    reasons.push(`only supports ${d.actual.toLocaleString()} tokens of context, short of the ${d.required.toLocaleString()} this query needs`);
+  }
+  if (e.no_key_available) reasons.push("you don't have a key for it");
+  return reasons.join(" and ") || "excluded";
+}
+
+function renderResult(data, promptId, vote, feeInfo, query) {
+  currentPromptId = promptId;
+  currentTrace = data;
+  currentQuery = query || null;
+
   const resultEl = document.getElementById("result");
   document.getElementById("chosenModel").textContent = data.chosen
     ? "→ " + data.chosen
     : "No model matched your filters";
   document.getElementById("explanationText").textContent = data.explanation || "";
 
+  const feeNoteEl = document.getElementById("feeNote");
+  if (feeInfo) {
+    feeNoteEl.textContent = feeInfo.reset
+      ? `Charged $${ROUTING_FEE.toFixed(2)} routing fee (demo). Balance hit $0 — reset to $${STARTING_BALANCE.toFixed(2)} for the demo.`
+      : `Charged $${ROUTING_FEE.toFixed(2)} routing fee (demo, not your token cost — that goes to your own provider via BYOK).`;
+  } else {
+    feeNoteEl.textContent = "";
+  }
+
+  const accessNoteEl = document.getElementById("accessNote");
+  if (data.chosen && !hasKeyFor(data.chosen)) {
+    const providerId = MODEL_PROVIDER[data.chosen];
+    const providerLabel = providerId
+      ? (byok.listDirectProviders().find(p => p.id === providerId) || {}).label
+      : null;
+    accessNoteEl.innerHTML = providerLabel
+      ? `Add an <a href="#" id="accessNoteLink">${providerLabel} key</a> in Settings to use this pick directly.`
+      : `Add a <a href="#" id="accessNoteLink">gateway key</a> (e.g. OpenRouter) in Settings to use this pick directly.`;
+    accessNoteEl.style.display = "block";
+    document.getElementById("accessNoteLink").addEventListener("click", (ev) => {
+      ev.preventDefault();
+      showView("settings");
+    });
+  } else {
+    accessNoteEl.style.display = "none";
+  }
+
   document.getElementById("eligibleList").innerHTML = (data.eligible_models || [])
-    .map(m => `<span class="pill">${m}</span>`).join("") || "<span class=\"pill\">none</span>";
+    .map(m => resolveExecutionCredential(m)
+      ? `<span class="pill">${m} <button class="pill-run-btn" data-model="${m}" title="Run on ${m} instead">▶ Run</button></span>`
+      : `<span class="pill">${m}</span>`)
+    .join("") || "<span class=\"pill\">none</span>";
 
   const excluded = data.excluded || [];
   document.getElementById("excludedLabel").style.display = excluded.length ? "block" : "none";
   document.getElementById("excludedList").innerHTML = excluded
-    .map(e => `<div class="excluded-item"><b>${e.model}</b> — ${e.reason}</div>`).join("");
+    .map(e => `<div class="excluded-item"><b>${e.model}</b> — ${exclusionReasonText(e)}</div>`).join("");
+
+  document.getElementById("thumbUp").classList.toggle("active-up", vote === "thumbs_up");
+  document.getElementById("thumbDown").classList.toggle("active-down", vote === "thumbs_down");
+  document.getElementById("feedbackSent").textContent = vote ? "Thanks for the feedback." : "";
+  document.getElementById("thumbUp").disabled = data.chosen === null;
+  document.getElementById("thumbDown").disabled = data.chosen === null;
+
+  document.getElementById("runError").textContent = "";
+  currentRuns = [];
+  renderRunEntries();
+  const runRowEl = document.getElementById("runRow");
+  runRowEl.style.display = data.chosen && resolveExecutionCredential(data.chosen) ? "block" : "none";
 
   resultEl.style.display = "block";
+}
+
+// Renders currentRuns as stacked entries — full re-render each time (list
+// stays small, simplicity beats a diffing scheme here). Each entry gets its
+// own independent rate/comment/try-better controls via data-index, handled
+// by ONE delegated listener on the container (see below) since these nodes
+// get replaced wholesale on every render.
+function renderRunEntries() {
+  const container = document.getElementById("runResponseList");
+  container.innerHTML = currentRuns.map((entry, i) => {
+    const escalationHtml = entry.escalated && entry.previousModel
+      ? `<p class="settings-sub" style="margin:0.3rem 0; font-size:0.78rem;">First response from ${escapeHtml(entry.previousModel)} looked degenerate, so this auto-escalated to ${escapeHtml(entry.model)} (SPEC.md Phase 3 safety net).</p>`
+      : "";
+    const usageHtml = entry.usage
+      ? `<p class="settings-sub" style="margin:0.3rem 0; font-size:0.78rem;">${entry.usage.actual_cost != null
+          ? `Actual: ${entry.usage.input_tokens} in / ${entry.usage.output_tokens} out tokens — $${entry.usage.actual_cost.toFixed(5)} at ${escapeHtml(entry.model)}'s real rates.`
+          : `Actual: ${entry.usage.input_tokens} in / ${entry.usage.output_tokens} out tokens.`}</p>`
+      : "";
+    const downVoted = entry.responseVote === "response_thumbs_down";
+    const thanksText = entry.responseVote ? "Thanks for the feedback." : "";
+    const target = downVoted ? nextBestModel(entry.model) : null;
+    const tryBetterHtml = target
+      ? `<div style="margin-top:0.5rem;"><button class="primary try-better-btn" data-index="${i}">Try ${escapeHtml(target)} instead</button></div>`
+      : "";
+    const commentHtml = downVoted
+      ? `<textarea class="response-comment-box" data-index="${i}" rows="2" placeholder="What went wrong? (optional, helps us improve routing)">${escapeHtml(entry.responseComment || "")}</textarea>
+         <button class="primary response-comment-submit" data-index="${i}" style="margin-top:0.4rem;">Submit feedback</button>`
+      : "";
+    return `
+      <div class="run-entry" data-index="${i}">
+        <div class="run-entry-model">→ ${escapeHtml(entry.model)}</div>
+        ${escalationHtml}
+        <div class="run-entry-text">${escapeHtml(entry.text)}</div>
+        ${usageHtml}
+        <div style="margin-top:0.6rem;">
+          <span class="feedback-label">Rate this response:</span>
+          <button class="response-vote-btn up${entry.responseVote === "response_thumbs_up" ? " active" : ""}" data-action="vote-up" data-index="${i}">Good 👍</button>
+          <button class="response-vote-btn down${downVoted ? " active" : ""}" data-action="vote-down" data-index="${i}">Poor 👎</button>
+          <span class="feedback-sent">${thanksText}</span>
+          ${commentHtml}
+          ${tryBetterHtml}
+        </div>
+      </div>`;
+  }).join("");
+}
+
+// Restores previously-logged runs (reconstructed by groupRecordsIntoChats,
+// sourced from the server) into the UI when reopening a past chat from
+// "Recent" — without this, the routing decision reappeared but every
+// actually-executed response was gone (only ever held in memory).
+function applyStoredRuns(runs) {
+  currentRuns = runs || [];
+  renderRunEntries();
+}
+
+// Delegated: run entries are replaced wholesale via innerHTML on every
+// render, so listeners on the buttons themselves wouldn't survive a
+// re-render — bind once on the stable parent instead.
+document.getElementById("runResponseList").addEventListener("click", (ev) => {
+  const voteBtn = ev.target.closest("[data-action='vote-up'], [data-action='vote-down']");
+  if (voteBtn) {
+    const i = parseInt(voteBtn.dataset.index, 10);
+    submitResponseVote(i, voteBtn.dataset.action === "vote-up" ? "response_thumbs_up" : "response_thumbs_down");
+    return;
+  }
+  const submitBtn = ev.target.closest(".response-comment-submit");
+  if (submitBtn) {
+    const i = parseInt(submitBtn.dataset.index, 10);
+    const box = document.querySelector(`.response-comment-box[data-index="${i}"]`);
+    const comment = box ? box.value.trim() : "";
+    if (comment) submitResponseVote(i, "response_thumbs_down", comment);
+    return;
+  }
+  const tryBtn = ev.target.closest(".try-better-btn");
+  if (tryBtn) {
+    const i = parseInt(tryBtn.dataset.index, 10);
+    const entry = currentRuns[i];
+    const target = entry && nextBestModel(entry.model);
+    if (target) runModel(target, tryBtn, tryBtn.textContent);
+    return;
+  }
+});
+
+// Shared execution pipeline — used by both the main "Run on this model"
+// button (runs currentTrace.chosen) and per-pill "Run" links on any
+// eligible model (see eligibleList rendering below), so picking a
+// non-chosen eligible model gets the same escalation/cost/logging/
+// persistence behavior, not a stripped-down copy.
+async function runModel(modelName, btn, defaultBtnText) {
+  if (!currentTrace || !currentQuery) return;
+  const errorEl = document.getElementById("runError");
+  errorEl.textContent = "";
+
+  let modelUsed = modelName;
+  let resolved = resolveExecutionCredential(modelUsed);
+  if (!resolved) {
+    errorEl.textContent = "No usable key for this model anymore — check Settings.";
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Running…";
+  try {
+    logNetworkCall("provider", providerDestination(resolved.providerId, resolved.credential),
+      `your query + key, sent straight from this tab to run ${modelUsed}`);
+    let result = await callModel(resolved.providerId, resolved.credential, modelUsed, currentQuery);
+    let escalated = false;
+    const firstModelTried = modelUsed;
+
+    if (isDegenerateResponse(result.text)) {
+      const target = nextBestModel(modelUsed);
+      const targetResolved = target ? resolveExecutionCredential(target) : null;
+      if (targetResolved) {
+        btn.textContent = "Response looked degenerate — escalating…";
+        logNetworkCall("provider", providerDestination(targetResolved.providerId, targetResolved.credential),
+          `auto-escalation retry on ${target}`);
+        const escalatedResult = await callModel(targetResolved.providerId, targetResolved.credential, target, currentQuery);
+        result = escalatedResult;
+        modelUsed = target;
+        resolved = targetResolved;
+        escalated = true;
+      }
+    }
+
+    const weights = {};
+    sliders.forEach(id => weights[id] = parseFloat(document.getElementById(id).value) / 100);
+
+    let usage = null;
+    if (result.usage) {
+      const pricing = await fetchPricing([modelUsed]);
+      const price = pricing[modelUsed];
+      const actualCost = price
+        ? (result.usage.input_tokens / 1000) * price.cost_per_1k_input
+          + (result.usage.output_tokens / 1000) * price.cost_per_1k_output
+        : null;
+      usage = { ...result.usage, actual_cost: actualCost };
+    }
+
+    const entry = {
+      model: modelUsed, text: result.text, escalated,
+      previousModel: escalated ? firstModelTried : null,
+      usage, responseVote: null, responseComment: null,
+    };
+    currentRuns.push(entry);
+    renderRunEntries();
+
+    await logImplicitOutcome(escalated ? "escalated" : "accepted", currentTrace, modelUsed, weights, usage, currentQuery, result.text);
+    renderChatList(); // sidebar recency/content now reflects this run
+  } catch (err) {
+    errorEl.textContent = err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = defaultBtnText;
+  }
+}
+
+document.getElementById("runBtn").addEventListener("click", () => {
+  if (!currentTrace || !currentTrace.chosen) return;
+  runModel(currentTrace.chosen, document.getElementById("runBtn"), "Run on this model");
+});
+
+// Delegated: eligibleList's pills are replaced wholesale via innerHTML on
+// every render, so a listener on the pills themselves wouldn't survive a
+// re-render — bind once on the stable parent instead.
+document.getElementById("eligibleList").addEventListener("click", (ev) => {
+  const btn = ev.target.closest(".pill-run-btn");
+  if (!btn || !currentTrace) return;
+  runModel(btn.dataset.model, btn, "▶ Run");
+});
+
+async function submitVote(outcome) {
+  if (!currentPromptId || !currentTrace || currentTrace.chosen === null) return;
+
+  document.getElementById("thumbUp").classList.toggle("active-up", outcome === "thumbs_up");
+  document.getElementById("thumbDown").classList.toggle("active-down", outcome === "thumbs_down");
+
+  try {
+    logNetworkCall("server", "/feedback", `routing vote ("${outcome}") — no key involved`);
+    await fetch("/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt_id: String(currentPromptId),
+        user_id: CLIENT_ID,
+        route_chosen: currentTrace.classified_as,
+        model_used: currentTrace.chosen,
+        outcome,
+      }),
+    });
+    document.getElementById("feedbackSent").textContent = "Thanks for the feedback.";
+  } catch {
+    document.getElementById("feedbackSent").textContent = "Couldn't save feedback (offline?).";
+  }
+}
+document.getElementById("thumbUp").addEventListener("click", () => submitVote("thumbs_up"));
+document.getElementById("thumbDown").addEventListener("click", () => submitVote("thumbs_down"));
+
+// Response-quality vote for currentRuns[i] — separate from routing votes
+// above (see outcome_log.py RESPONSE_VOTE_OUTCOMES). Negative votes collect
+// an optional comment; positive votes submit immediately, no comment
+// prompt. Updates that entry's persisted state and re-renders in place —
+// other entries in the stack are untouched.
+async function submitResponseVote(i, outcome, comment) {
+  const entry = currentRuns[i];
+  if (!entry || !currentPromptId || !currentTrace) return false;
+  try {
+    logNetworkCall("server", "/feedback",
+      `response-quality vote ("${outcome}"${comment ? " + your comment" : ""}) — includes your prompt + the response text, no key`);
+    await fetch("/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt_id: String(currentPromptId),
+        user_id: CLIENT_ID,
+        route_chosen: currentTrace.classified_as,
+        model_used: entry.model,
+        outcome,
+        comment: comment || null,
+        prompt_text: currentQuery || null,
+        response_text: entry.text || null,
+      }),
+    });
+    entry.responseVote = outcome;
+    if (comment) entry.responseComment = comment;
+    renderRunEntries();
+    renderChatList(); // best-effort sidebar refresh; server already has it via the POST above
+    return true;
+  } catch {
+    document.getElementById("runError").textContent = "Couldn't save feedback (offline?).";
+    return false;
+  }
 }
 
 document.getElementById("submit").addEventListener("click", async () => {
@@ -478,10 +1368,21 @@ document.getElementById("submit").addEventListener("click", async () => {
   btn.textContent = "Routing…";
 
   const weights = {};
-  sliders.forEach(id => weights[id] = parseFloat(document.getElementById(id).value));
-  const query = document.getElementById("query").value;
+  sliders.forEach(id => weights[id] = parseFloat(document.getElementById(id).value) / 100);
+  const query = isFreetextUnlocked() ? queryText.value.trim() : querySelect.value;
+
+  let feeReset = false;
+  if (!isFreetextUnlocked()) {
+    localStorage.setItem(PRESET_TRIES_KEY, String(presetTries() + 1));
+    if (presetTries() >= PRESET_TRIES_REQUIRED) localStorage.setItem(FREETEXT_UNLOCKED_KEY, "1");
+    renderQueryInputState();
+  } else {
+    feeReset = chargeRoutingFee();
+  }
 
   try {
+    logNetworkCall("server", "/route",
+      "query text + weights, to pick a model — no key involved (also durably logs the routing decision so it can be reconstructed later, since this is what powers Recent now)");
     const res = await fetch("/route", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -489,13 +1390,20 @@ document.getElementById("submit").addEventListener("click", async () => {
         query,
         eu_only: document.getElementById("euOnly").checked,
         weights,
+        allowed_models: document.getElementById("keyOnly").checked ? accessibleModelNames() : null,
+        user_id: CLIENT_ID,
       }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "request failed");
 
-    renderResult(data);
-    addChat(query, data);
+    // Server issues prompt_id now (see api.py) — single source of truth,
+    // not a client-generated Date.now() with no durable tie to anything.
+    const promptId = data.prompt_id;
+    const feeInfo = isFreetextUnlocked() ? { charged: true, reset: feeReset } : null;
+    renderResult(data, promptId, null, feeInfo, query);
+    renderChatList();
+    setActiveChatItem(promptId);
   } catch (err) {
     errorEl.textContent = err.message;
   } finally {

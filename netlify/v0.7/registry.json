@@ -1,0 +1,287 @@
+[
+  {
+    "name": "mistral-small",
+    "cost_per_1k_input": 9.375e-05,
+    "cost_per_1k_output": 0.00025,
+    "energy_wh_per_1k_tokens": 0.35661033821235494,
+    "water_ml_per_1k_tokens": 1.9285487090524154,
+    "energy_is_estimated": false,
+    "cost_is_stale": false,
+    "region": "EU",
+    "context_window": 256000,
+    "capabilities": [
+      "creative",
+      "factual",
+      "long_context"
+    ],
+    "latency_ms_p50": 400,
+    "no_train_guarantee": true
+  },
+  {
+    "name": "codestral",
+    "cost_per_1k_input": 0.0003,
+    "cost_per_1k_output": 0.0009,
+    "energy_wh_per_1k_tokens": 0.10638260429349325,
+    "water_ml_per_1k_tokens": 0.5753171240192114,
+    "energy_is_estimated": false,
+    "cost_is_stale": false,
+    "region": "EU",
+    "context_window": 256000,
+    "capabilities": [
+      "code",
+      "long_context"
+    ],
+    "latency_ms_p50": 450,
+    "no_train_guarantee": true
+  },
+  {
+    "name": "mistral-large",
+    "cost_per_1k_input": 0.0005,
+    "cost_per_1k_output": 0.0015,
+    "energy_wh_per_1k_tokens": 0.9147659072677129,
+    "water_ml_per_1k_tokens": 4.947054026503791,
+    "energy_is_estimated": false,
+    "cost_is_stale": false,
+    "region": "EU",
+    "context_window": 262144,
+    "capabilities": [
+      "code",
+      "creative",
+      "factual",
+      "long_context",
+      "reasoning"
+    ],
+    "latency_ms_p50": 700,
+    "no_train_guarantee": true
+  },
+  {
+    "name": "llama-3.1-8b",
+    "cost_per_1k_input": 4.9999999999999996e-05,
+    "cost_per_1k_output": 8e-05,
+    "energy_wh_per_1k_tokens": 0.0891889860032445,
+    "water_ml_per_1k_tokens": 0.4823340363055463,
+    "energy_is_estimated": false,
+    "cost_is_stale": false,
+    "region": "non-EU",
+    "context_window": 131072,
+    "capabilities": [
+      "factual"
+    ],
+    "latency_ms_p50": 350,
+    "no_train_guarantee": false
+  },
+  {
+    "name": "llama-3.3-70b",
+    "cost_per_1k_input": 9.999999999999999e-05,
+    "cost_per_1k_output": 0.00032,
+    "energy_wh_per_1k_tokens": 0.6601984325115953,
+    "water_ml_per_1k_tokens": 3.570353123022707,
+    "energy_is_estimated": false,
+    "cost_is_stale": false,
+    "region": "non-EU",
+    "context_window": 131072,
+    "capabilities": [
+      "factual",
+      "reasoning"
+    ],
+    "latency_ms_p50": 550,
+    "no_train_guarantee": false
+  },
+  {
+    "name": "qwen-2.5-coder",
+    "cost_per_1k_input": 0.00066,
+    "cost_per_1k_output": 0.001,
+    "energy_wh_per_1k_tokens": 0.2,
+    "water_ml_per_1k_tokens": 0.4,
+    "energy_is_estimated": true,
+    "cost_is_stale": false,
+    "region": "non-EU",
+    "context_window": 32768,
+    "capabilities": [
+      "code",
+      "reasoning"
+    ],
+    "latency_ms_p50": 500,
+    "no_train_guarantee": false
+  },
+  {
+    "name": "phi-4",
+    "cost_per_1k_input": 7.000000000000001e-05,
+    "cost_per_1k_output": 0.00014000000000000001,
+    "energy_wh_per_1k_tokens": 0.09638433931737118,
+    "water_ml_per_1k_tokens": 0.5212465070283434,
+    "energy_is_estimated": false,
+    "cost_is_stale": false,
+    "region": "non-EU",
+    "context_window": 16384,
+    "capabilities": [
+      "code",
+      "factual"
+    ],
+    "latency_ms_p50": 400,
+    "no_train_guarantee": false
+  },
+  {
+    "name": "gpt-4o-mini",
+    "cost_per_1k_input": 0.00015,
+    "cost_per_1k_output": 0.0006,
+    "energy_wh_per_1k_tokens": 0.10128640127168348,
+    "water_ml_per_1k_tokens": 0.5477568580772643,
+    "energy_is_estimated": false,
+    "cost_is_stale": false,
+    "region": "non-EU",
+    "context_window": 128000,
+    "capabilities": [
+      "code",
+      "factual",
+      "long_context",
+      "vision"
+    ],
+    "latency_ms_p50": 600,
+    "no_train_guarantee": false
+  },
+  {
+    "name": "gpt-4o",
+    "cost_per_1k_input": 0.0025,
+    "cost_per_1k_output": 0.01,
+    "energy_wh_per_1k_tokens": 2.9795698928295464,
+    "water_ml_per_1k_tokens": 16.113513980422184,
+    "energy_is_estimated": false,
+    "cost_is_stale": false,
+    "region": "non-EU",
+    "context_window": 128000,
+    "capabilities": [
+      "code",
+      "creative",
+      "factual",
+      "long_context",
+      "reasoning",
+      "vision"
+    ],
+    "latency_ms_p50": 900,
+    "no_train_guarantee": false
+  },
+  {
+    "name": "gpt-5.4-mini",
+    "cost_per_1k_input": 0.00075,
+    "cost_per_1k_output": 0.0045000000000000005,
+    "energy_wh_per_1k_tokens": 0.8371094802687067,
+    "water_ml_per_1k_tokens": 4.527088069293165,
+    "energy_is_estimated": false,
+    "cost_is_stale": false,
+    "region": "non-EU",
+    "context_window": 400000,
+    "capabilities": [
+      "code",
+      "factual",
+      "long_context",
+      "vision",
+      "web_search"
+    ],
+    "latency_ms_p50": 600,
+    "no_train_guarantee": false
+  },
+  {
+    "name": "gpt-5.4",
+    "cost_per_1k_input": 0.0025,
+    "cost_per_1k_output": 0.015000000000000001,
+    "energy_wh_per_1k_tokens": 3.1640039069521864,
+    "water_ml_per_1k_tokens": 17.110933128797424,
+    "energy_is_estimated": false,
+    "cost_is_stale": false,
+    "region": "non-EU",
+    "context_window": 1050000,
+    "capabilities": [
+      "code",
+      "creative",
+      "factual",
+      "long_context",
+      "reasoning",
+      "vision",
+      "web_search"
+    ],
+    "latency_ms_p50": 900,
+    "no_train_guarantee": false
+  },
+  {
+    "name": "claude-haiku-4.5",
+    "cost_per_1k_input": 0.001,
+    "cost_per_1k_output": 0.005,
+    "energy_wh_per_1k_tokens": 0.10674661879505111,
+    "water_ml_per_1k_tokens": 0.5772857144436364,
+    "energy_is_estimated": false,
+    "cost_is_stale": false,
+    "region": "non-EU",
+    "context_window": 200000,
+    "capabilities": [
+      "code",
+      "factual",
+      "long_context",
+      "vision",
+      "web_search"
+    ],
+    "latency_ms_p50": 500,
+    "no_train_guarantee": true
+  },
+  {
+    "name": "claude-sonnet-4.5",
+    "cost_per_1k_input": 0.003,
+    "cost_per_1k_output": 0.015000000000000001,
+    "energy_wh_per_1k_tokens": 2.9795698928295464,
+    "water_ml_per_1k_tokens": 16.113513980422184,
+    "energy_is_estimated": false,
+    "cost_is_stale": false,
+    "region": "non-EU",
+    "context_window": 1000000,
+    "capabilities": [
+      "code",
+      "creative",
+      "factual",
+      "long_context",
+      "reasoning",
+      "vision",
+      "web_search"
+    ],
+    "latency_ms_p50": 900,
+    "no_train_guarantee": true
+  },
+  {
+    "name": "gemini-2.5-flash",
+    "cost_per_1k_input": 0.0003,
+    "cost_per_1k_output": 0.0025,
+    "energy_wh_per_1k_tokens": 2.9795698928295464,
+    "water_ml_per_1k_tokens": 16.113513980422184,
+    "energy_is_estimated": false,
+    "cost_is_stale": false,
+    "region": "non-EU",
+    "context_window": 1048576,
+    "capabilities": [
+      "code",
+      "factual",
+      "long_context",
+      "vision",
+      "web_search"
+    ],
+    "latency_ms_p50": 500,
+    "no_train_guarantee": false
+  },
+  {
+    "name": "kimi-k2",
+    "cost_per_1k_input": 0.0006,
+    "cost_per_1k_output": 0.0025,
+    "energy_wh_per_1k_tokens": 0.2,
+    "water_ml_per_1k_tokens": 0.4,
+    "energy_is_estimated": true,
+    "cost_is_stale": false,
+    "region": "non-EU",
+    "context_window": 262144,
+    "capabilities": [
+      "code",
+      "factual",
+      "long_context",
+      "reasoning"
+    ],
+    "latency_ms_p50": 700,
+    "no_train_guarantee": false
+  }
+]

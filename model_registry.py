@@ -104,6 +104,19 @@ REGISTRY = {
             latency_ms_p50=500, no_train_guarantee=False,
         ),
         _make(
+            # Microsoft has no independent frontier model available via API
+            # (MAI-1 isn't published anywhere in this dataset) — Phi-4 is
+            # their open-weight contribution: cheapest input token in the
+            # whole registry, but capped at a 16K context window, smaller
+            # than everything else here. Ecologits has no exact Phi-4 entry;
+            # Phi-3-medium (same 14B class) is used as the energy proxy.
+            "phi-4", "huggingface_hub", "microsoft/Phi-3-medium-128k-instruct",
+            cost_per_1k_input=0.00007, cost_per_1k_output=0.00014,
+            region="non-EU", context_window=16384,
+            capabilities=frozenset({"factual", "code"}),
+            latency_ms_p50=400, no_train_guarantee=False,
+        ),
+        _make(
             "gpt-4o-mini", "openai", "gpt-4o-mini",
             cost_per_1k_input=0.00015, cost_per_1k_output=0.0006,
             region="non-EU", context_window=128000,
@@ -118,38 +131,39 @@ REGISTRY = {
             latency_ms_p50=900, no_train_guarantee=False,
         ),
         _make(
+            # web_search: confirmed via OpenRouter's per-model "web_search" tool pricing
             "gpt-5.4-mini", "openai", "gpt-5.4-mini",
             cost_per_1k_input=0.00075, cost_per_1k_output=0.0045,
             region="non-EU", context_window=400000,
-            capabilities=frozenset({"factual", "code", "vision", "long_context"}),
+            capabilities=frozenset({"factual", "code", "vision", "long_context", "web_search"}),
             latency_ms_p50=600, no_train_guarantee=False,
         ),
         _make(
             "gpt-5.4", "openai", "gpt-5.4",
             cost_per_1k_input=0.0025, cost_per_1k_output=0.015,
             region="non-EU", context_window=1050000,
-            capabilities=frozenset({"factual", "code", "vision", "long_context", "reasoning", "creative"}),
+            capabilities=frozenset({"factual", "code", "vision", "long_context", "reasoning", "creative", "web_search"}),
             latency_ms_p50=900, no_train_guarantee=False,
         ),
         _make(
             "claude-haiku-4.5", "anthropic", "claude-haiku-4-5-20251001",
             cost_per_1k_input=0.001, cost_per_1k_output=0.005,
             region="non-EU", context_window=200000,
-            capabilities=frozenset({"factual", "code", "vision", "long_context"}),
+            capabilities=frozenset({"factual", "code", "vision", "long_context", "web_search"}),
             latency_ms_p50=500, no_train_guarantee=True,
         ),
         _make(
             "claude-sonnet-4.5", "anthropic", "claude-sonnet-4-5-20250929",
             cost_per_1k_input=0.003, cost_per_1k_output=0.015,
             region="non-EU", context_window=1000000,
-            capabilities=frozenset({"factual", "code", "vision", "long_context", "reasoning", "creative"}),
+            capabilities=frozenset({"factual", "code", "vision", "long_context", "reasoning", "creative", "web_search"}),
             latency_ms_p50=900, no_train_guarantee=True,
         ),
         _make(
             "gemini-2.5-flash", "google_genai", "gemini-2.5-flash",
             cost_per_1k_input=0.0003, cost_per_1k_output=0.0025,
             region="non-EU", context_window=1048576,
-            capabilities=frozenset({"factual", "code", "vision", "long_context"}),
+            capabilities=frozenset({"factual", "code", "vision", "long_context", "web_search"}),
             latency_ms_p50=500, no_train_guarantee=False,
         ),
         _make(
@@ -168,11 +182,16 @@ def get(name: str) -> ModelInfo:
     return REGISTRY[name]
 
 
-def filter_by(capability: str = None, eu_only: bool = False, min_context: int = 0):
-    """Hard-filter candidates. See SPEC.md 'Hard Filters vs Soft Scoring'."""
+def filter_by(capability=None, eu_only: bool = False, min_context: int = 0):
+    """Hard-filter candidates. See SPEC.md 'Hard Filters vs Soft Scoring'.
+
+    capability: a single capability string, an iterable of required
+    capabilities (all must be present), or None/empty for no requirement.
+    """
+    required = {capability} if isinstance(capability, str) else set(capability or ())
     result = []
     for m in REGISTRY.values():
-        if capability and capability not in m.capabilities:
+        if required and not required.issubset(m.capabilities):
             continue
         if eu_only and m.region != "EU":
             continue
@@ -194,7 +213,7 @@ def _demo():
 
     coders = filter_by(capability="code")
     assert all("code" in m.capabilities for m in coders)
-    assert {"codestral", "mistral-large", "qwen-2.5-coder", "gpt-4o-mini", "gpt-4o", "gpt-5.4-mini", "gpt-5.4",
+    assert {"codestral", "mistral-large", "qwen-2.5-coder", "phi-4", "gpt-4o-mini", "gpt-4o", "gpt-5.4-mini", "gpt-5.4",
             "claude-haiku-4.5", "claude-sonnet-4.5", "gemini-2.5-flash", "kimi-k2"} == {m.name for m in coders}
 
     assert get("gpt-4o-mini").energy_wh_per_1k_tokens > 0
