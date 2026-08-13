@@ -4,7 +4,7 @@ See SPEC.md "Hard Filters vs. Soft Scoring" and "Reasoning Trace".
 """
 from classifier import classify
 from model_registry import ModelInfo, REGISTRY, filter_by
-from outcome_log import negative_response_rate, LOG_PATH as DEFAULT_OUTCOME_LOG_PATH
+from outcome_log import negative_response_rate, judge_penalty_rate, LOG_PATH as DEFAULT_OUTCOME_LOG_PATH
 
 DEFAULT_WEIGHTS = {"cost": 0.6, "env": 0.3, "latency": 0.1}
 
@@ -16,6 +16,13 @@ DEFAULT_WEIGHTS = {"cost": 0.6, "env": 0.3, "latency": 0.1}
 # combined — soft, not a hard ban (SPEC.md's exploration/exploitation note:
 # a model never fully vanishes just because it had a bad run early on).
 QUALITY_PENALTY_WEIGHT = 1.0
+
+# Same shape, separate signal: the offline LLM-judge's fail rate (see
+# outcome_log.judge_penalty_rate). Deliberately its own weight, ADDED to the
+# human-vote penalty rather than blended into one number — a model bad by
+# both a human vote AND the judge should be penalized more than bad by
+# either alone, which only works if they're summed, not averaged.
+JUDGE_PENALTY_WEIGHT = 1.0
 
 # route -> minimum capability a model must have to be eligible
 ROUTE_CAPABILITY = {
@@ -122,14 +129,19 @@ def route(query: str, weights: dict = None, eu_only: bool = False, min_context: 
 
 def _rank(models, weights, route=None, log_path=None):
     """Return models sorted best-first by weighted normalized cost/env/latency,
-    plus a soft demerit for models with a real negative-feedback track record
-    on this route (see outcome_log.negative_response_rate)."""
+    plus two SEPARATE soft demerits: a real negative-feedback track record
+    from human votes (outcome_log.negative_response_rate) and, independently,
+    a fail rate from the offline LLM-judge (outcome_log.judge_penalty_rate) —
+    summed, not blended, so a model bad by both measures is penalized more
+    than bad by either alone."""
     cost_norm = _normalize(models, _cost)
     env_norm = _normalize(models, lambda m: m.energy_wh_per_1k_tokens)
     latency_norm = _normalize(models, lambda m: m.latency_ms_p50)
+    effective_log_path = log_path or DEFAULT_OUTCOME_LOG_PATH
 
     def score(m):
-        quality_penalty = negative_response_rate(m.name, route=route, log_path=log_path or DEFAULT_OUTCOME_LOG_PATH) or 0.0
+        quality_penalty = negative_response_rate(m.name, route=route, log_path=effective_log_path) or 0.0
+        judge_penalty = judge_penalty_rate(m.name, route=route, log_path=effective_log_path) or 0.0
         # `or 0` guards against an explicit None (not just a missing key) —
         # dict.get's default only covers the latter. A malformed client
         # payload (e.g. a NaN slider value serializing to JSON null) used to
@@ -139,6 +151,7 @@ def _rank(models, weights, route=None, log_path=None):
             + (weights.get("env", 0) or 0) * env_norm[m.name]
             + (weights.get("latency", 0) or 0) * latency_norm[m.name]
             + QUALITY_PENALTY_WEIGHT * quality_penalty
+            + JUDGE_PENALTY_WEIGHT * judge_penalty
         )
 
     return sorted(models, key=score)  # lower normalized score = cheaper/greener/faster = better
@@ -248,6 +261,17 @@ def _demo():
                         log_path=log_path)
         result_after_bad_feedback = route("what is the capital of germany?")
         assert result_after_bad_feedback["chosen"] != default_pick
+
+        # judge penalty: same effect, but from "judged" records rather than
+        # human votes — a SEPARATE model+route than the one just penalized
+        # above, proving both signals independently move ranking
+        default_pick_2 = route("write a python function to reverse a list")["chosen"]
+        judge_trace = {"classified_as": "code", "chosen": default_pick_2}
+        for i in range(4):
+            log_outcome(judge_trace, "judged", DEFAULT_WEIGHTS, prompt_id=f"judge-test-prompt-{i}",
+                        log_path=log_path, judge_pass=False, judge_model="gpt-4o-mini")
+        result_after_judge_fail = route("write a python function to reverse a list")
+        assert result_after_judge_fail["chosen"] != default_pick_2
 
         # malformed weights (explicit None, e.g. a NaN slider serialized to
         # JSON null) must not crash the whole request with a 500

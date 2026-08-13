@@ -24,6 +24,12 @@
                  env var): full records incl. all users' text, plus ?since=<unix ts>
                  and ?limit=<n> for a resumable pull — this is the offline evaluator's
                  access path (see outcome_log.py docstring), not meant for browsers.
+  POST /judge    {"prompt_id", "model_used", "route_chosen"?, "judge_pass": bool,
+                  "judge_reasoning"?, "judge_model"?} — ADMIN-ONLY (X-Quindral-Admin-Token
+                 required, 403 otherwise). The offline evaluator's verdict on one
+                 (prompt, response) pair, logged as a "judged" outcome — see
+                 outcome_log.judge_penalty_rate and router.py's _rank for how this
+                 feeds into ranking as its own signal, separate from human votes.
   GET  /         serves the web UI (index.html)
 
   PRIVACY: /feedback and /outcome accept prompt_text/response_text for a future
@@ -169,6 +175,15 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
+        if self.path == "/judge":
+            # Admin-only, same exemption pattern as GET /outcomes: a
+            # correctly-authenticated evaluator is trusted, known traffic,
+            # not the anonymous public traffic this limiter exists to blunt.
+            # An unauthenticated caller still gets rate-limited before the
+            # 403, so this can't be used to bypass the limiter by hammering
+            # a wrong token.
+            self._handle_judge()
+            return
         if self._rate_limited():
             return
         if self.path == "/route":
@@ -315,6 +330,46 @@ class Handler(BaseHTTPRequestHandler):
                 user_id=body.get("user_id"), prompt_id=body.get("prompt_id"),
                 usage=body.get("usage"),
                 prompt_text=body.get("prompt_text"), response_text=body.get("response_text"),
+            )
+        except ValueError as e:
+            self._send(400, {"error": str(e)})
+            return
+        self._send(200, record)
+
+    def _handle_judge(self):
+        """Offline evaluator writes verdicts here — admin-token required.
+        Unlike /outcome (any anonymous client can log "accepted"/"escalated"
+        for their own real usage), a "quality verdict" directly moves
+        ranking (see router.py's judge_penalty_rate) — letting an
+        unauthenticated caller write these would let anyone fake the
+        signal, not just log their own activity."""
+        is_admin = bool(ADMIN_TOKEN) and self.headers.get("X-Quindral-Admin-Token") == ADMIN_TOKEN
+        if not is_admin:
+            if self._rate_limited():
+                return
+            self._send(403, {"error": "admin token required"})
+            return
+
+        try:
+            body = self._read_json_body()
+        except json.JSONDecodeError:
+            self._send(400, {"error": "invalid JSON body"})
+            return
+
+        prompt_id = body.get("prompt_id")
+        model_used = body.get("model_used")
+        judge_pass = body.get("judge_pass")
+        if not prompt_id or not model_used or judge_pass is None:
+            self._send(400, {"error": "'prompt_id', 'model_used', and 'judge_pass' are required"})
+            return
+
+        fake_trace = {"classified_as": body.get("route_chosen"), "chosen": model_used}
+        try:
+            record = log_outcome(
+                fake_trace, "judged", {}, prompt_id=prompt_id,
+                judge_pass=bool(judge_pass),
+                judge_reasoning=body.get("judge_reasoning"),
+                judge_model=body.get("judge_model"),
             )
         except ValueError as e:
             self._send(400, {"error": str(e)})

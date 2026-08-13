@@ -225,34 +225,47 @@ directly:
   `?limit=<n>` for a resumable cursor pull — this is the evaluator's access
   path, distinct from the browser-facing public feed above.
 
-### Offline Quality Judging (data model built, judge itself deferred)
-**Decision this session**: don't run an LLM-as-judge (or any automated
-fact-checker) on the live request path — it's another API call on every
-response, which cuts against the app's cost/environmental positioning the
-same way a full-LLM classifier would (SPEC's original classifier
-rationale, now applied here too). Instead, judging should happen **offline**,
-as a batch job against logged (prompt, response) pairs, once real traffic
-exists (post-Railway-deploy).
+### Offline Quality Judging (built — see EVALUATOR.md)
+**Decision**: don't run an LLM-as-judge (or any automated fact-checker) on
+the live request path — it's another API call on every response, which cuts
+against the app's cost/environmental positioning the same way a full-LLM
+classifier would (SPEC's original classifier rationale, applied here too).
+Judging happens **offline**, as a batch job against logged (prompt,
+response) pairs.
 
-**What's actually built now**: the data the future judge would need.
-`outcome_log.log_outcome()` now accepts and stores `prompt_text` /
-`response_text` — real content, not just metadata. Present on any record
-tied to a real execution (accepted/escalated/response votes); `None` on
-routing-only votes, which never see a response. **This is a genuine privacy
-posture change**, called out explicitly rather than folded in quietly:
-response text previously never left the browser at all (the entire BYOK
-pitch); now it's sent to and retained on Quindral's server for this
-purpose. The key still never touches the server, in any request — those are
-two independent claims, and the Settings page now states both separately
-instead of one implying the other.
+**Built this session**: `evaluate.py`, a standalone script — pulls new
+records via admin-authenticated `GET /outcomes` (resumable via a saved
+cursor), judges each `"accepted"`/`"escalated"` record (not
+`response_thumbs_*` votes, which carry the same content and would judge the
+same pair twice) with a cheap OpenAI model on a simple pass/fail + one-
+sentence-reasoning basis, and posts verdicts to a new admin-only
+`POST /judge` endpoint. Verdicts land as a `"judged"` outcome
+(`outcome_log.py`) with `judge_pass`/`judge_reasoning`/`judge_model` fields.
+`outcome_log.judge_penalty_rate()` reads them back with the exact same
+shape as `negative_response_rate` (route-scoped, `MIN_VOTES_FOR_QUALITY_SIGNAL`
+floor, last-write-wins dedup — keyed by `(prompt_id, model_used)` rather
+than `(user_id, prompt_id)` since a verdict isn't "per user"). `router.py`'s
+`_rank()` adds it as a **separate** penalty (`JUDGE_PENALTY_WEIGHT`,
+summed with `QUALITY_PENALTY_WEIGHT`, not blended into one number) — a
+model bad by both human votes and the judge is penalized more than bad by
+either alone.
 
-**Not built**: the judge itself (LLM-as-judge or other fact-checker), the
-batch script that would run it against `outcomes.jsonl`, and the mechanism
-that would feed its verdicts back into `_rank()`. When built, its
-integration point is designed to be the same shape as
-`negative_response_rate` — a per-(model, route) penalty function, just
-sourced from automated judging instead of (or alongside) human votes, so no
-new routing logic is needed, only a new data source.
+Data retention (`prompt_text`/`response_text` on `log_outcome()`) was
+already built the session before this — **a genuine privacy posture
+change**, called out explicitly rather than folded in quietly: response
+text previously never left the browser at all (the entire BYOK pitch); now
+it's sent to and retained on Quindral's server for this purpose. The key
+still never touches the server, in any request — those are two independent
+claims, and the Settings page states both separately instead of one
+implying the other.
+
+**Not built**: scheduling (manual runs only, by design — see EVALUATOR.md),
+retry on judge-call failure (a failed judge call is skipped and the record
+falls behind the cursor permanently), anything beyond simple pass/fail
+(no confidence score, no failure-type categorization, no cross-model
+consistency checking — EVALUATION.md's original scenario compared two
+models' answers directly; this judges each response against the prompt
+alone, not against each other).
 
 ---
 
@@ -425,7 +438,7 @@ Recommended plan: seed Phase 0 with public datasets + synthetic generation (Phas
 - **Multilingual support**: aim2balance runs a separate language-aware routing layer on top of their capability routes. If this app supports multiple languages, embeddings/classifier need to generalize across languages or require per-language calibration.
 - **Classifier runtime location**: server/backend vs. edge/on-device (mobile) — not yet decided by user.
 - **UI mechanism for user-adjustable criteria weights**: ~~sliders vs. presets vs. toggles~~ **resolved — budget-allocator sliders, see "UI Decisions."**
-- **Judge model / fact-checking mechanism**: deferred (see "Offline Quality Judging") — LLM-as-judge vs. external fact-checking API vs. cross-model consistency check not yet chosen, blocked on having real traffic to test against.
+- **Judge model / fact-checking mechanism**: ~~deferred~~ **resolved — LLM-as-judge (OpenAI, `gpt-4o-mini` default), simple pass/fail, see "Offline Quality Judging" / EVALUATOR.md.** External fact-checking APIs and cross-model consistency checking (comparing multiple models' answers to each other, as in EVALUATION.md's original scenario) were considered and not built — this judges each response against the prompt alone.
 - **Server hardening**: `api.py` is explicitly the stdlib prototype server (single-process, no real framework) — fine for a controlled demo, not guaranteed to hold up at real scale. Closed since deploy: `/outcomes` has token auth + per-user redaction, and **every POST endpoint + `GET /outcomes` now has per-IP rate limiting** (`RateLimiter`, in-memory sliding window, default 60 req/60s, env-configurable via `QUINDRAL_RATE_LIMIT_MAX`/`QUINDRAL_RATE_LIMIT_WINDOW`, admin-token requests exempt). Still open: it's in-memory and per-process — correct at today's single Railway instance, would need a real shared store (e.g. Redis) if this ever scales to multiple replicas; static file serving isn't rate-limited; a real ASGI server is still the eventual answer if traffic actually grows, not needed yet.
 - **Multi-provider execution**: only OpenAI is wired for real calls. Anthropic, Google, Mistral, Moonshot, Microsoft, and gateway (OpenRouter-style) execution are all unbuilt — each is its own increment, not yet scheduled.
 - **Enterprise/team tier**: identified as the real monetization target, needs an org/multi-user data model the app doesn't have (today: single browser, no accounts) — not scoped in detail yet.
@@ -446,11 +459,15 @@ Recommended plan: seed Phase 0 with public datasets + synthetic generation (Phas
 - **Prompt and response text are now retained server-side** (for future offline judging) — a deliberate, disclosed privacy tradeoff, distinct from and not implying anything about key privacy (which remains absolute)
 - Monetization: **BYOK stays free**; **#4 (flat per-route fee, decoupled from token cost)** is the near-term mechanism (prototyped with a fictional balance); **#3 (enterprise governance)** is the identified long-term revenue target, not yet built; managed keys and flat subscription were considered and not pursued
 - **Log persistence and evaluator access are env-var-driven, not hardcoded** — `QUINDRAL_LOG_PATH` (point at a Railway volume) and `QUINDRAL_ADMIN_TOKEN` (unlocks the evaluator's full/paginated `/outcomes` access) are both optional and default to prior local-dev behavior when unset
+- **Every POST endpoint + `GET /outcomes` is per-IP rate-limited** (in-memory sliding window, `QUINDRAL_RATE_LIMIT_MAX`/`QUINDRAL_RATE_LIMIT_WINDOW`, admin-token requests exempt) — see RATELIMITER.md
+- **Offline LLM-judge is built**: `evaluate.py`, run manually (not scheduled), pass/fail verdicts via an admin-only `POST /judge`, feeding `router.py`'s ranking as a signal separate from (summed with, not blended into) human votes — see EVALUATOR.md
 
 ## Not Yet Decided
 - Classifier runtime: server vs. edge/on-device
 - Native vs. cross-platform for mobile
-- Judge/fact-checking mechanism (once offline judging is actually built)
 - Whether/how to force occasional exploration traffic to quality-penalized models
 - Enterprise tier data model (orgs, multi-user, roles)
 - Real Stripe wiring details for the routing fee (today: fictional `localStorage` balance only)
+- Whether/how to schedule the evaluator (cron, GitHub Actions) vs. keep running it manually
+- Finer-grained judge output (confidence score, failure-type categorization) beyond simple pass/fail
+- Cross-model consistency checking (comparing multiple models' answers to each other on the same prompt, as in EVALUATION.md's original motivating example) — today's judge only checks a response against its own prompt

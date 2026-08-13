@@ -8,3 +8,4 @@ openrouter_cache.json
 outcomes.jsonl
 .env
 .env.*
+local/

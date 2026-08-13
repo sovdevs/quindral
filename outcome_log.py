@@ -43,10 +43,19 @@ ALL_VOTE_OUTCOMES = VOTE_OUTCOMES | RESPONSE_VOTE_OUTCOMES
 # browser's localStorage — nothing durable — so a server-backed "Recent"
 # history had no routing explanation to reconstruct from.
 ROUTED_OUTCOME = "routed"
-VALID_OUTCOMES = {"regenerated", "escalated", "accepted", "continued", ROUTED_OUTCOME} | ALL_VOTE_OUTCOMES
+# "judged" is the offline LLM-as-judge's verdict on one (prompt, response)
+# pair — written by the evaluator script (see evaluate.py), not by end
+# users. Kept as its own outcome type rather than mixed into
+# response_thumbs_*: it's a different kind of signal (automated, not human)
+# and router.py scores them as two SEPARATE penalties, not one blended rate.
+JUDGED_OUTCOME = "judged"
+VALID_OUTCOMES = {"regenerated", "escalated", "accepted", "continued", ROUTED_OUTCOME, JUDGED_OUTCOME} | ALL_VOTE_OUTCOMES
 # Outcomes that need a stable prompt_id/user_id to be meaningful — vote
-# outcomes (for "one vote per prompt per user") and now "routed" (so a
+# outcomes (for "one vote per prompt per user") and "routed" (so a
 # server-backed history can group everything for one prompt together).
+# "judged" needs prompt_id too (to know which run it's about) but not
+# user_id (it's a system verdict, not a user's) — validated separately,
+# see log_outcome.
 REQUIRES_IDS_OUTCOMES = ALL_VOTE_OUTCOMES | {ROUTED_OUTCOME}
 # QUINDRAL_LOG_PATH: point this at a mounted persistent volume in
 # production (e.g. Railway) — the default lives next to the code, which is
@@ -66,6 +75,9 @@ def log_outcome(
     prompt_text: str = None,
     response_text: str = None,
     trace_detail: dict = None,
+    judge_pass: bool = None,
+    judge_reasoning: str = None,
+    judge_model: str = None,
 ) -> dict:
     """Append one outcome record derived from a router trace. Returns the record written.
 
@@ -82,11 +94,17 @@ def log_outcome(
     "binding_criterion", "explanation", "relaxed_filters"}, the rest of the
     routing trace beyond route_chosen/model_used, so a server-backed history
     can reconstruct the full explanation, not just which model was picked.
+    judge_pass / judge_reasoning / judge_model: only for outcome="judged" —
+    the offline evaluator's pass/fail verdict on one (prompt, response) pair,
+    a short reason, and which model did the judging. See router.py's
+    judge_penalty_rate for how this feeds into ranking.
     """
     if outcome not in VALID_OUTCOMES:
         raise ValueError(f"outcome must be one of {VALID_OUTCOMES}, got {outcome!r}")
     if outcome in REQUIRES_IDS_OUTCOMES and not (user_id and prompt_id):
         raise ValueError(f"{outcome!r} requires both user_id and prompt_id")
+    if outcome == JUDGED_OUTCOME and not prompt_id:
+        raise ValueError(f"{outcome!r} requires prompt_id (no user_id needed — it's a system verdict)")
 
     record = {
         "timestamp": time.time(),
@@ -101,6 +119,9 @@ def log_outcome(
         "prompt_text": prompt_text,
         "response_text": response_text,
         "trace_detail": trace_detail,
+        "judge_pass": judge_pass,
+        "judge_reasoning": judge_reasoning,
+        "judge_model": judge_model,
     }
     log_path = Path(log_path)
     log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -164,6 +185,35 @@ def negative_response_rate(model_name: str, route: str = None, log_path: Path = 
         return None
     negative = sum(1 for o in latest.values() if o == "response_thumbs_down")
     return negative / total
+
+
+def judge_penalty_rate(model_name: str, route: str = None, log_path: Path = LOG_PATH) -> float | None:
+    """Fraction of offline judge verdicts for this model (optionally scoped
+    to one route) that were a fail. Same shape as negative_response_rate —
+    same MIN_VOTES_FOR_QUALITY_SIGNAL floor, same None-if-not-enough-data
+    behavior — but a SEPARATE signal, not blended with human votes: a model
+    that's bad by both measures should be penalized more than bad by either
+    alone, which only works if they're kept apart (see router.py's _rank).
+
+    Dedupe key is (prompt_id, model_used) rather than (user_id, prompt_id) —
+    a judge verdict isn't "per user," it's per (prompt, response) pair; if
+    the evaluator ever re-judges the same pair, last-write-wins like votes.
+    """
+    latest = {}  # (prompt_id, model_used) -> judge_pass
+    for record in read_outcomes(log_path):
+        if record.get("outcome") != JUDGED_OUTCOME:
+            continue
+        if record.get("model_used") != model_name:
+            continue
+        if route is not None and record.get("route_chosen") != route:
+            continue
+        latest[(record.get("prompt_id"), record.get("model_used"))] = record.get("judge_pass")
+
+    total = len(latest)
+    if total < MIN_VOTES_FOR_QUALITY_SIGNAL:
+        return None
+    failed = sum(1 for v in latest.values() if v is False)
+    return failed / total
 
 
 def _demo():
@@ -272,6 +322,36 @@ def _demo():
         )
         assert routed_record["trace_detail"]["binding_criterion"] == "cost"
         assert routed_record["prompt_text"] == "what is the capital of france?"
+
+        # "judged" needs prompt_id but NOT user_id (system verdict, not a user's)
+        try:
+            log_outcome(trace, "judged", DEFAULT_WEIGHTS, log_path=test_log)
+            assert False, "should have rejected 'judged' with no prompt_id"
+        except ValueError:
+            pass
+        judged_record = log_outcome(
+            trace, "judged", DEFAULT_WEIGHTS, prompt_id="judge-prompt-1", log_path=test_log,
+            judge_pass=False, judge_reasoning="hallucinated a fact", judge_model="gpt-4o-mini",
+        )
+        assert judged_record["user_id"] is None
+        assert judged_record["judge_pass"] is False
+        assert judged_record["judge_reasoning"] == "hallucinated a fact"
+
+        # judge_penalty_rate: separate signal from negative_response_rate,
+        # same shape (route-scoped, min-sample floor, last-write-wins per
+        # (prompt_id, model_used))
+        assert judge_penalty_rate("gpt-4o-mini", log_path=test_log) is None  # only 1 verdict so far
+        judge_trace = {"classified_as": "reasoning", "chosen": "gpt-4o-mini"}
+        for i, verdict in enumerate([False, False, True]):
+            log_outcome(judge_trace, "judged", DEFAULT_WEIGHTS, prompt_id=f"judge-reasoning-{i}",
+                        log_path=test_log, judge_pass=verdict, judge_model="gpt-4o-mini")
+        assert judge_penalty_rate("gpt-4o-mini", route="reasoning", log_path=test_log) == 2 / 3
+        # re-judging the SAME prompt_id+model overwrites, doesn't double-count
+        log_outcome(judge_trace, "judged", DEFAULT_WEIGHTS, prompt_id="judge-reasoning-0",
+                    log_path=test_log, judge_pass=True, judge_model="gpt-4o-mini")
+        assert judge_penalty_rate("gpt-4o-mini", route="reasoning", log_path=test_log) == 1 / 3
+        # this signal is independent of negative_response_rate's data
+        assert negative_response_rate("gpt-4o-mini", route="reasoning", log_path=test_log) is None
 
     print("outcome_log self-check: all cases passed")
 
