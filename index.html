@@ -322,6 +322,24 @@
   .run-entry { margin-top: 1rem; padding-top: 0.8rem; border-top: 1px solid #eceeeb; }
   .run-entry-model { font-weight: 600; }
   .run-entry-text { margin-top: 0.5rem; white-space: pre-wrap; }
+  .code-block {
+    margin: 0.6rem 0;
+    padding: 0.8rem;
+    background: #1a1f1c;
+    color: #dfe8e2;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    white-space: pre;
+  }
+  .code-lang {
+    font-size: 0.7rem;
+    color: var(--sidebar-muted, #8ba296);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.4rem;
+  }
 
   /* --- Settings view --- */
   .settings-title { margin: 0 0 0.3rem; font-size: 1.2rem; }
@@ -617,6 +635,26 @@ function truncate(s, n) {
   return s.length > n ? s.slice(0, n) + "…" : s;
 }
 
+// Renders a model response with ```lang ... ``` fenced code blocks styled
+// as actual code — no markdown library, just the one pattern that matters
+// for "does the code prompt read like code." Everything outside fences
+// stays plain (HTML-escaped) text.
+function renderResponseHtml(text) {
+  const fenceRe = /```(\w*)\n?([\s\S]*?)```/g;
+  let html = "";
+  let lastIndex = 0;
+  let match;
+  while ((match = fenceRe.exec(text)) !== null) {
+    html += escapeHtml(text.slice(lastIndex, match.index));
+    const lang = match[1] || "";
+    const code = match[2];
+    html += `<pre class="code-block">${lang ? `<div class="code-lang">${escapeHtml(lang)}</div>` : ""}<code>${escapeHtml(code)}</code></pre>`;
+    lastIndex = fenceRe.lastIndex;
+  }
+  html += escapeHtml(text.slice(lastIndex));
+  return html;
+}
+
 async function renderFeedbackList() {
   const listEl = document.getElementById("feedbackList");
   listEl.textContent = "Loading…";
@@ -640,7 +678,7 @@ async function renderFeedbackList() {
           <summary style="cursor:pointer; color:var(--muted); font-size:0.78rem;">${escapeHtml(truncate(r.prompt_text || "(no prompt)", 80))}</summary>
           <div style="margin-top:0.4rem; padding:0.5rem; background:#fff; border-radius:6px; font-size:0.8rem;">
             <div><b>Prompt:</b> ${escapeHtml(r.prompt_text || "(none)")}</div>
-            <div style="margin-top:0.4rem;"><b>Response:</b> <span style="white-space:pre-wrap;">${escapeHtml(r.response_text || "(none)")}</span></div>
+            <div style="margin-top:0.4rem;"><b>Response:</b> <span style="white-space:pre-wrap;">${r.response_text ? renderResponseHtml(r.response_text) : escapeHtml("(none)")}</span></div>
           </div>
         </details>` : "";
       return `<div class="excluded-item"><b>${label}</b> — ${escapeHtml(r.model_used || "?")} (${escapeHtml(r.route_chosen || "?")} route) <span style="color:var(--muted); font-size:0.75rem;">${when}</span>${comment}${usage}${promptResponse}</div>`;
@@ -1157,7 +1195,7 @@ function renderRunEntries() {
       <div class="run-entry" data-index="${i}">
         <div class="run-entry-model">→ ${escapeHtml(entry.model)}</div>
         ${escalationHtml}
-        <div class="run-entry-text">${escapeHtml(entry.text)}</div>
+        <div class="run-entry-text">${renderResponseHtml(entry.text)}</div>
         ${usageHtml}
         <div style="margin-top:0.6rem;">
           <span class="feedback-label">Rate this response:</span>
