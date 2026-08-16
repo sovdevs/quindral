@@ -167,7 +167,10 @@ def _demo():
     assert "Ruled out" in coding_text
     assert "can't" in coding_text  # some excluded model lacks the 'code' capability
 
-    fallback = route("describe what's happening in this photo", eu_only=True)
+    # Mistral's current-gen lineup being multimodal means EU+vision no
+    # longer needs a fallback (see router.py) — use an impossible
+    # min_context instead to keep exercising the "relaxed" explanation path.
+    fallback = route("describe what's happening in this photo", eu_only=True, min_context=99999999)
     fallback_text = explain(fallback, eu_only=True)
     assert "relaxed" in fallback_text
     assert fallback["chosen"] in fallback_text

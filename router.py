@@ -226,10 +226,13 @@ def _demo():
         assert result_extreme["chosen"] is not None
         assert "min_context" in result_extreme["relaxed_filters"]
 
-        # no EU-hosted model has vision capability -> must fall back
-        result_fallback = route("describe what's happening in this photo", eu_only=True)
-        assert result_fallback["chosen"] is not None
-        assert "capability" in result_fallback["relaxed_filters"]
+        # EU-hosted vision now exists (Mistral's current-gen lineup is
+        # multimodal) — this used to need a capability-filter fallback,
+        # same story as the codestral/code case right below
+        result_vision_eu = route("describe what's happening in this photo", eu_only=True)
+        assert result_vision_eu["chosen"] is not None
+        assert get(result_vision_eu["chosen"]).region == "EU"
+        assert "relaxed_filters" not in result_vision_eu
 
         # EU-hosted coding now exists (codestral), so this should NOT need a fallback
         result_eu_code = route("write a python function to reverse a list", eu_only=True)

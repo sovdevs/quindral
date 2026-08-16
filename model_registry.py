@@ -60,10 +60,14 @@ def _make(name, ecologits_provider, ecologits_name, cost_per_1k_input, cost_per_
 REGISTRY = {
     m.name: m for m in [
         _make(
+            # Pricing + vision refreshed: current-gen Mistral Small (4) is
+            # multimodal, unlike the older small this registry was tracking
+            # — closes what used to be a real gap ("no EU-hosted vision
+            # model", previously asserted in router.py's own self-check).
             "mistral-small", "mistralai", "mistral-small-latest",
-            cost_per_1k_input=0.00009, cost_per_1k_output=0.00025,
+            cost_per_1k_input=0.00015, cost_per_1k_output=0.0006,
             region="EU", context_window=256000,
-            capabilities=frozenset({"factual", "creative", "long_context"}),
+            capabilities=frozenset({"factual", "creative", "long_context", "vision"}),
             latency_ms_p50=400, no_train_guarantee=True,
         ),
         _make(
@@ -74,11 +78,31 @@ REGISTRY = {
             latency_ms_p50=450, no_train_guarantee=True,
         ),
         _make(
+            # Medium 3.5: new mid-tier between small and large — dense
+            # 128B, agentic/reasoning/coding in one model, also multimodal.
+            "mistral-medium-3.5", "mistralai", "mistral-medium-3.5",
+            cost_per_1k_input=0.0015, cost_per_1k_output=0.0075,
+            region="EU", context_window=256000,
+            capabilities=frozenset({"factual", "creative", "reasoning", "long_context", "code", "vision"}),
+            latency_ms_p50=600, no_train_guarantee=True,
+        ),
+        _make(
             "mistral-large", "mistralai", "mistral-large-2512",
             cost_per_1k_input=0.0005, cost_per_1k_output=0.0015,
             region="EU", context_window=262144,
-            capabilities=frozenset({"factual", "creative", "reasoning", "long_context", "code"}),
+            capabilities=frozenset({"factual", "creative", "reasoning", "long_context", "code", "vision"}),
             latency_ms_p50=700, no_train_guarantee=True,
+        ),
+        _make(
+            # Ministral 3 8B: edge/mobile-tier, symmetric $0.15/$0.15 per M
+            # pricing (unusually cheap for output-heavy use), vision-capable
+            # despite the small size — a genuine cheaper-than-mistral-small
+            # option for the "simple" route.
+            "ministral-8b", "mistralai", "ministral-8b-2512",
+            cost_per_1k_input=0.00015, cost_per_1k_output=0.00015,
+            region="EU", context_window=262144,
+            capabilities=frozenset({"factual", "vision"}),
+            latency_ms_p50=300, no_train_guarantee=True,
         ),
         _make(
             "llama-3.1-8b", "huggingface_hub", "meta-llama/Meta-Llama-3.1-8B-Instruct",
@@ -213,8 +237,11 @@ def _demo():
 
     coders = filter_by(capability="code")
     assert all("code" in m.capabilities for m in coders)
-    assert {"codestral", "mistral-large", "qwen-2.5-coder", "phi-4", "gpt-4o-mini", "gpt-4o", "gpt-5.4-mini", "gpt-5.4",
+    assert {"codestral", "mistral-large", "mistral-medium-3.5", "qwen-2.5-coder", "phi-4", "gpt-4o-mini", "gpt-4o", "gpt-5.4-mini", "gpt-5.4",
             "claude-haiku-4.5", "claude-sonnet-4.5", "gemini-2.5-flash", "kimi-k2"} == {m.name for m in coders}
+
+    eu_vision = filter_by(capability="vision", eu_only=True)
+    assert eu_vision, "closing the previously-real 'no EU-hosted vision model' gap — Mistral's current-gen lineup is multimodal"
 
     assert get("gpt-4o-mini").energy_wh_per_1k_tokens > 0
     assert get("gpt-4o-mini").energy_is_estimated is False
