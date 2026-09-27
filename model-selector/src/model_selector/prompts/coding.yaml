@@ -1,0 +1,46 @@
+suite: coding
+category: coding
+description: Code-writing tasks graded by executing the returned function against tests (opt-in) or by LLM judge.
+prompts:
+  - id: slugify
+    difficulty: easy
+    input: |
+      Write a Python function `slugify(s: str) -> str` that lowercases, replaces runs of non-alphanumeric
+      characters with a single hyphen, and strips leading/trailing hyphens. Return ONLY the code in one block.
+    grader:
+      type: code_exec
+      entry: slugify
+      tests:
+        - [["Hello, World!"], "hello-world"]
+        - [["  --Already--Slugged--  "], "already-slugged"]
+        - [["A1 b2__C3"], "a1-b2-c3"]
+    max_output_tokens: 800
+
+  - id: merge_intervals
+    difficulty: medium
+    input: |
+      Write a Python function `merge(intervals: list[list[int]]) -> list[list[int]]` that merges overlapping
+      closed intervals (touching intervals like [1,2],[2,3] merge) and returns them sorted. Return ONLY code.
+    grader:
+      type: code_exec
+      entry: merge
+      tests:
+        - [[[[1,3],[2,6],[8,10],[15,18]]], [[1,6],[8,10],[15,18]]]
+        - [[[[1,2],[2,3]]], [[1,3]]]
+        - [[[[5,7],[1,2]]], [[1,2],[5,7]]]
+        - [[[]], []]
+    max_output_tokens: 1500
+
+  - id: lru_cache_class
+    difficulty: hard
+    input: |
+      Write a Python class `LRU` with `__init__(self, capacity: int)`, `get(self, key) -> int` (returns -1 if
+      missing) and `put(self, key, value) -> None`, all O(1), evicting the least recently used key. Also write
+      a function `run(ops)` that takes a list like [["put",1,1],["get",1]] on a fresh LRU(2) and returns the list
+      of `get` results. Return ONLY code.
+    grader:
+      type: code_exec
+      entry: run
+      tests:
+        - [[[["put",1,1],["put",2,2],["get",1],["put",3,3],["get",2],["put",4,4],["get",1],["get",3],["get",4]]], [1,-1,-1,3,4]]
+    max_output_tokens: 2500

@@ -1,0 +1,67 @@
+suite: invoice_extraction
+category: reasoning
+description: >
+  A real custom suite (not the generic reasoning ladder) for one concrete task: extract
+  invoice_number + total from varied real-world invoice text formats. Multiple samples with
+  different layouts/currencies/noise, all machine-graded, so the pass rate means "handles our
+  actual document variety" rather than "solved one generic reasoning benchmark item".
+prompts:
+  - id: invoice_clean_layout
+    difficulty: easy
+    tags: [extraction, json]
+    input: |
+      Extract the invoice number and total due from the text below. Reply with ONLY a JSON object
+      with keys "invoice_number" (string) and "total" (number, no currency symbol).
+      ---
+      ACME Supplies Ltd — Invoice INV-20931, issued 12 May. 14 x widgets @ $91.75.
+      Total due: $1,284.50. Payment within 30 days.
+    grader: {type: json_fields, expect: {invoice_number: "INV-20931", total: 1284.5}}
+    max_output_tokens: 200
+
+  - id: invoice_label_variant
+    difficulty: easy
+    tags: [extraction, json]
+    input: |
+      Extract the invoice number and total due from the text below. Reply with ONLY a JSON object
+      with keys "invoice_number" (string) and "total" (number, no currency symbol).
+      ---
+      Bill To: Northwind Traders
+      Ref# 2024-0087
+      Line items omitted for brevity.
+      AMOUNT PAYABLE: EUR 452.00
+    grader: {type: json_fields, expect: {invoice_number: "2024-0087", total: 452.0}}
+    max_output_tokens: 200
+
+  - id: invoice_noisy_ocr
+    difficulty: medium
+    tags: [extraction, json, noisy]
+    input: |
+      Extract the invoice number and total due from the text below (this text came from OCR and
+      has some noise/line breaks). Reply with ONLY a JSON object with keys "invoice_number"
+      (string) and "total" (number, no currency symbol).
+      ---
+      GLOBAL FRE1GHT S0LUTI0NS
+      inv0ice no: GF-88214-B
+
+      Subtotal.......... 900.00
+      Tax (8%)........... 72.00
+      -----------------------
+      TOTAL DUE:......... 972.00
+    grader: {type: json_fields, expect: {invoice_number: "GF-88214-B", total: 972.0}}
+    max_output_tokens: 300
+
+  - id: invoice_multiple_totals
+    difficulty: medium
+    tags: [extraction, json, distractor]
+    input: |
+      Extract the invoice number and the FINAL total due (not the subtotal, not a prior balance)
+      from the text below. Reply with ONLY a JSON object with keys "invoice_number" (string) and
+      "total" (number, no currency symbol).
+      ---
+      Invoice #: 55931-R2
+      Previous balance: $310.00
+      New charges (subtotal): $640.00
+      Late fee: $15.00
+      Total amount now due: $965.00
+    grader: {type: json_fields, expect: {invoice_number: "55931-R2", total: 965.0}}
+    max_output_tokens: 300

@@ -1,0 +1,18 @@
+suite: transcription
+category: transcription
+description: >
+  Reference texts are synthesized to audio once with the cheapest TTS model (cached in data dir),
+  or supply your own WAV/MP3 via `audio:`. Graded by word error rate.
+prompts:
+  - id: plain_sentence
+    difficulty: easy
+    reference: "The quick brown fox jumps over the lazy dog near the riverbank on a sunny afternoon."
+    grader: {type: wer, max_wer: 0.05}
+  - id: numbers_names
+    difficulty: medium
+    reference: "Dr. Siobhan Okonkwo will call on March 14th at 3:45 PM about invoice 20931 for 1,284 dollars and 50 cents."
+    grader: {type: wer, max_wer: 0.15}
+  - id: technical_jargon
+    difficulty: hard
+    reference: "We fine-tuned the transformer with LoRA adapters, then quantized to INT8 and deployed it behind a gRPC endpoint on Kubernetes."
+    grader: {type: wer, max_wer: 0.15}

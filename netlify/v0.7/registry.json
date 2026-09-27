@@ -12,7 +12,8 @@
     "capabilities": [
       "creative",
       "factual",
-      "long_context"
+      "long_context",
+      "vision"
     ],
     "latency_ms_p50": 400,
     "no_train_guarantee": true
@@ -35,6 +36,27 @@
     "no_train_guarantee": true
   },
   {
+    "name": "mistral-medium-3.5",
+    "cost_per_1k_input": 0.0015,
+    "cost_per_1k_output": 0.0075,
+    "energy_wh_per_1k_tokens": 0.9390335407049024,
+    "water_ml_per_1k_tokens": 5.078293388132113,
+    "energy_is_estimated": false,
+    "cost_is_stale": true,
+    "region": "EU",
+    "context_window": 256000,
+    "capabilities": [
+      "code",
+      "creative",
+      "factual",
+      "long_context",
+      "reasoning",
+      "vision"
+    ],
+    "latency_ms_p50": 600,
+    "no_train_guarantee": true
+  },
+  {
     "name": "mistral-large",
     "cost_per_1k_input": 0.0005,
     "cost_per_1k_output": 0.0015,
@@ -49,9 +71,27 @@
       "creative",
       "factual",
       "long_context",
-      "reasoning"
+      "reasoning",
+      "vision"
     ],
     "latency_ms_p50": 700,
+    "no_train_guarantee": true
+  },
+  {
+    "name": "ministral-8b",
+    "cost_per_1k_input": 0.00015,
+    "cost_per_1k_output": 0.00015,
+    "energy_wh_per_1k_tokens": 0.08917685218652592,
+    "water_ml_per_1k_tokens": 0.4822684166247322,
+    "energy_is_estimated": false,
+    "cost_is_stale": true,
+    "region": "EU",
+    "context_window": 262144,
+    "capabilities": [
+      "factual",
+      "vision"
+    ],
+    "latency_ms_p50": 300,
     "no_train_guarantee": true
   },
   {

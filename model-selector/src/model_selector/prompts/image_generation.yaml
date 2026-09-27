@@ -1,0 +1,14 @@
+suite: image_generation
+category: image_generation
+description: Generated images are checked by a vision-capable judge model against a checklist.
+prompts:
+  - id: simple_composition
+    difficulty: easy
+    input: "A single red cube resting on top of a blue sphere, plain white background, studio lighting."
+    grader: {type: vision_judge, checklist: ["one red cube", "one blue sphere", "cube is on top of sphere", "white background"]}
+    params: {size: "1024x1024", quality: low}
+  - id: text_rendering
+    difficulty: hard
+    input: "A shop door with a neon sign that reads exactly: OPEN 24H"
+    grader: {type: vision_judge, checklist: ["a neon sign is visible", "sign text reads exactly OPEN 24H with correct spelling"]}
+    params: {size: "1024x1024", quality: medium}

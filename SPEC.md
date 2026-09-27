@@ -9,10 +9,14 @@ Latest Commit" the first time — cause not yet root-caused, see RAILWAY.md
 troubleshooting notes if it recurs). Classify → route → explain → execute →
 evaluate → log pipeline is built and self-tested (`classifier.py`,
 `router.py`, `explain.py`, `providers.js`, `outcome_log.py`, `api.py`).
-`netlify/v0.7/` remains a separate static, routing-only demo snapshot with
-no backend (see "Netlify Demo Scope" below). Next planned step: let real
-traffic accumulate, then build the offline LLM-as-judge pipeline against it
-(see "Offline Quality Judging" below).
+`netlify/v0.7/` is a **deprecated, frozen** static snapshot — no longer used
+now that Railway is live (see "Netlify Demo Scope" below). The offline
+LLM-as-judge pipeline (`evaluate.py`) is built and has already run
+successfully against real production traffic (see "Offline Quality
+Judging" below) — including catching a real hallucination in the wild
+(the original EVALUATION.md scenario, reproduced live: `gpt-4o-mini`
+fabricated a name, `gpt-5.4` got it right, the judge correctly failed the
+former and passed the latter).
 
 ## Context / Origin
 Independent app, inspired by (not affiliated with, not a wrapper of) [aim2balance.ai](https://aim2balance.ai) — an EU-based orchestrator that routes prompts across open-source LLMs (Gemma, Mistral, Llama, Qwen, GLM, Kimi K2), optimizing primarily for environmental efficiency and EU data residency, using what they describe publicly as "five capability routes" plus a language-aware routing layer. They do not expose routing reasoning to end users — that gap is the core differentiator for this project.
@@ -59,14 +63,20 @@ Phased approach (see "Classifier Roadmap" below):
 Comparable prior art considered: RouteLLM (trained weak/strong classifier), Semantic Router (pure embedding similarity, open source), RoRF/Not Diamond (random forest over embeddings), Martian (interpretability-based model mapping), OpenRouter/Inworld (rule-based + confidence escalation). The dominant pattern across serious routers is **avoid a full LLM-based classifier** — favor embeddings + small trained models.
 
 ### 2. Model Registry
-Table maintained per candidate model (`model_registry.py`), currently 15 models across 8 providers/families (Mistral, Meta/Llama, Qwen, Microsoft/Phi, OpenAI, Anthropic, Google, Moonshot/Kimi):
+Table maintained per candidate model (`model_registry.py`), currently **17 models** across 8 providers/families (Mistral, Meta/Llama, Qwen, Microsoft/Phi, OpenAI, Anthropic, Google, Moonshot/Kimi):
 - Cost per input/output token — **live-synced** via `openrouter_sync.py` (falls back to hand-entered placeholders, flagged `cost_is_stale` when no sync has run)
 - Energy/water estimate per token (Ecologits methodology, `energy.py` — public, reusable, same one aim2balance references)
 - Hosting region (EU / non-EU)
 - Context window
-- Capability tags (code, vision, long-context, reasoning, creative, factual, **web_search** — added this session for the retrieval-necessity signal)
+- Capability tags (code, vision, long-context, reasoning, creative, factual, **web_search** — added earlier for the retrieval-necessity signal)
 - Measured latency
 - Data policy flags (no-train guarantee, encryption, residency)
+
+**Mistral lineup refreshed this session**, prompted by checking the registry against Mistral's live pricing page:
+- `mistral-small` and `mistral-large` gained the **`vision` capability tag** — current-gen Mistral models (Small 4, Medium 3.5, Large 3) are multimodal, which the registry hadn't reflected. This closes what had been a **real, self-tested gap**: `router.py`'s own self-check used to assert "no EU-hosted model has vision capability → must fall back" — that assertion is now false and was updated to assert the opposite (an EU vision model resolves directly, no fallback needed), same pattern as the earlier `codestral`/EU-code-gap closure.
+- New **`mistral-medium-3.5`** entry — fills a real mid-tier gap between small and large (dense 128B, agentic/reasoning/coding/vision in one model, 256k context).
+- New **`ministral-8b`** entry — a cheaper-than-`mistral-small` EU option for the "simple" route (symmetric $0.15/$0.15 per M pricing, vision-capable despite the small size, 262k context).
+- `mistral-small`'s cost figure is sourced from the **OpenRouter sync cache**, not Mistral's own pricing page directly — the registry's designed precedence (`openrouter_sync.py` output overrides hand-entered placeholders once a sync has run) surfaced a real discrepancy between the two sources; the app trusts OpenRouter's live number by design, not whichever source was checked most recently.
 
 ### 3. Hard Filters vs. Soft Scoring
 - **Hard filters** (exclude candidates outright, not scored): EU-only toggle, capability floor (e.g. don't route a coding task to a non-code-capable model), minimum context length requirement, **"only models I have a BYOK key for" (opt-in checkbox, root app only)** — this is a genuine hard whitelist intersection, applied after relaxation, never itself relaxed (the user opted in explicitly; silently ignoring it would recommend something unusable)
@@ -354,18 +364,18 @@ are different claims and conflating them would be dishonest by omission.
 
 ---
 
-## Netlify Demo Scope (`netlify/v0.7/`)
-A separate, intentionally backend-less static build for a drag-and-drop
+## Netlify Demo Scope (`netlify/v0.7/`) — DEPRECATED, frozen
+Was a separate, intentionally backend-less static build for a drag-and-drop
 demo (no server at all — `router.js` is a hand-ported 1:1 JS mirror of
 `classifier.py` + `router.py` + `explain.py` + `model_registry.py`'s
-`filter_by()`). Kept in sync with the *routing algorithm* only. Explicitly
-**does not** include (all require a real backend or were scoped out of the
-static build): real model execution (`providers.js` isn't even copied
-there), response-quality voting, the Feedback page, quality-penalty
-ranking, `/pricing`/`/outcome` endpoints, or the "only models I have a key
-for" checkbox (built root-app-only, never ported). It does include the
-fictional demo balance, preset-gating, budget-allocator sliders, and the
-access-nudge note — the UI/UX decisions that don't need a server.
+`filter_by()`). **No longer actively used or kept in sync** now that the
+real app is deployed on Railway — the Railway deployment is the actual
+demo/product surface going forward. Left in the repo as-is (last synced
+registry snapshot, last-synced routing logic) rather than deleted, but
+should not be assumed current: it never had real model execution, response
+voting, the Feedback page, quality-penalty ranking, or the offline judge —
+none of that will be retrofitted here. Treat any reference to it in older
+parts of this doc as historical.
 
 ---
 

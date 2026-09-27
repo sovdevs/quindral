@@ -37,6 +37,14 @@
     display: flex;
     flex-direction: column;
     padding: 1.2rem 0.9rem;
+    /* Without this, the sidebar's height matched the page's full scrollable
+       height — fine on short views, but a tall view (e.g. Feedback's log)
+       stretched the sidebar along with it, pushing the bottom nav buttons
+       (Export/Task Finder/Feedback/About/Settings) far below the fold. */
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
   }
   .logo-row {
     display: flex;
@@ -151,7 +159,7 @@
   header p { margin: 0; opacity: 0.9; font-size: 0.95rem; text-shadow: 0 1px 6px rgba(0,0,0,0.6); }
 
   main {
-    max-width: 720px;
+    max-width: 1100px;
     margin: 1.5rem auto 3rem;
     padding: 0 1.5rem;
   }
@@ -397,6 +405,7 @@
   <div class="sidebar-footer">
     <div class="sidebar-label" id="balanceLabel" title="Fictional balance, for demo purposes — no real payment yet">Demo balance: $5.00</div>
     <button class="sidebar-nav-btn" id="exportBtn">⬇ Export chats</button>
+    <button class="sidebar-nav-btn" id="taskFinderBtn">🎯 Task Finder</button>
     <button class="sidebar-nav-btn" id="feedbackBtn">💬 Feedback</button>
     <button class="sidebar-nav-btn" id="aboutBtn">ℹ️ About</button>
     <button class="sidebar-nav-btn" id="settingsBtn">⚙ Settings</button>
@@ -556,6 +565,107 @@
     </div>
   </div>
 
+  <!-- Task Finder view — a separate tool from the routing pipeline above:
+       model-selector answers "what's the cheapest model that actually works
+       for this kind of task", backed by measured pass-rate evidence rather
+       than the registry's static cost/env weighting (see
+       model-selector/README.md). Empty results until `model-selector
+       discover` (+ probes) has been run against the local catalog. -->
+  <div class="view" id="taskFinderView">
+    <div class="card">
+      <h2 class="settings-title">Task Finder
+        <a href="#" id="tfWhatsThisLink" title="What's this?"
+           style="font-size:0.8rem; font-weight:normal; text-decoration:none; margin-left:0.4rem; opacity:0.75;">🛈 What's this?</a>
+      </h2>
+      <p class="settings-sub">
+        Describe a task and find the cheapest model with a track record of actually passing it —
+        a separate tool from the router above, backed by measured probe evidence
+        (see <code>model-selector/README.md</code>) rather than static cost/env weighting.
+      </p>
+      <textarea id="tfDescription" rows="2" placeholder="e.g. extract fields from invoices to JSON"
+        style="width:100%; padding:0.8rem; border-radius:8px; border:1px solid #d7ddd5; font:inherit; resize:vertical;"></textarea>
+      <details style="margin-top:0.6rem;">
+        <summary style="cursor:pointer; font-size:0.85rem;">📎 Add a sample input (optional, gives a more accurate cost estimate)</summary>
+        <p class="settings-sub" style="font-size:0.78rem; margin:0.4rem 0;">
+          Without this, cost estimates use a generic ~500-token guess regardless of your actual
+          file size. Paste a representative sample (one invoice, one ticket, etc.) — its length is
+          used directly for the input-token estimate.
+        </p>
+        <textarea id="tfSampleInput" rows="4" placeholder="Paste a representative sample of what you'd actually send…"
+          style="width:100%; padding:0.8rem; border-radius:8px; border:1px solid #d7ddd5; font:inherit; resize:vertical;"></textarea>
+        <input type="text" id="tfRubric" placeholder="Optional: how to grade a real response, e.g. &quot;PASS if invoice_number and total are both correct&quot; — needed for Test with sample"
+          style="width:100%; margin-top:0.5rem; padding:0.8rem; border-radius:8px; border:1px solid #d7ddd5; font:inherit;">
+      </details>
+      <div class="settings-row" style="margin-top:0.6rem; gap:0.6rem; display:flex;">
+        <select id="tfCategory" style="flex:1;">
+          <option value="">Auto-detect category</option>
+        </select>
+        <select id="tfDifficulty" style="flex:1;" title="Task complexity — separate from a model's own reasoning-effort setting (none/low/medium/high/xhigh/max), which model-selector sweeps automatically per model">
+          <option value="">Auto-detect task difficulty</option>
+          <option value="easy">Easy</option>
+          <option value="medium">Medium</option>
+          <option value="hard">Hard</option>
+        </select>
+      </div>
+      <div style="margin-top:0.8rem; display:flex; gap:0.6rem; flex-wrap:wrap;">
+        <button class="primary" id="tfSubmit">Find cheapest model (free estimate)</button>
+        <button class="primary" id="tfTrialBtn" title="Requires a sample input + rubric — actually calls real models, costs real API money" style="background:#8a5a1e;">Test with sample (real cost)</button>
+        <button class="sidebar-nav-btn" id="tfNewTaskBtn" title="Clear the form for a new task">+ New task</button>
+      </div>
+      <p class="error" id="tfError" style="margin-top:0.6rem;"></p>
+      <div id="tfResult" style="margin-top:1rem;"></div>
+    </div>
+
+    <div class="card" style="margin-top:1rem;">
+      <h2 class="settings-title" style="font-size:1rem;">Previously run tasks</h2>
+      <div id="tfHistory"></div>
+    </div>
+
+    <!-- "What's this?" popup — anchored to the right of the main pane rather
+         than inline, so it doesn't push the form/results around when opened. -->
+    <div id="tfWhatsThisPopup" class="card" style="display:none; position:fixed; top:6rem; right:1.5rem;
+         width:320px; max-width:calc(100vw - 3rem); max-height:70vh; overflow-y:auto; z-index:50;">
+      <div style="display:flex; justify-content:space-between; align-items:start;">
+        <h2 class="settings-title" style="font-size:1rem; margin:0;">What's Task Finder?</h2>
+        <a href="#" id="tfWhatsThisClose" style="text-decoration:none; opacity:0.6; font-size:1.1rem; line-height:1;">✕</a>
+      </div>
+      <p class="settings-sub">
+        Task Finder is a separate tool from the router on the main Chat page. The router picks a
+        model for one query <i>right now</i>, weighted by whatever cost/environment/speed sliders
+        you've set. Task Finder instead asks: <b>for a whole category of task, what's the cheapest
+        model with actual evidence it works?</b> — backed by <code>model-selector</code>
+        (see <code>model-selector/README.md</code>), which keeps its own local catalog of pricing
+        and probe results, independent of this app's own 17-model registry.
+      </p>
+      <p class="settings-sub"><b>Two ways to get an answer:</b></p>
+      <p class="settings-sub" style="font-size:0.85rem;">
+        <b>Find cheapest model</b> (free) — a cost <i>estimate</i> only. If a model has already been
+        probed for this category, its real measured pass rate is shown too; otherwise you just get
+        candidates ranked by price. Add a sample input to make the cost estimate reflect your actual
+        file size instead of a generic guess.
+      </p>
+      <p class="settings-sub" style="font-size:0.85rem;">
+        <b>Test with sample</b> (real cost) — actually calls real models with your sample, cheapest
+        first, stopping at the first one that passes your rubric. This is live inference — it costs
+        real API money on the server's own key (never your BYOK key, which never reaches this
+        server). Requires a sample input and a rubric.
+      </p>
+      <p class="settings-sub" style="font-size:0.85rem;">
+        <b>What backs a pass rate:</b> every category has a fixed suite of test prompts
+        (<code>model-selector/src/model_selector/prompts/*.yaml</code>), graded automatically —
+        exact/numeric/JSON-field matching for objective tasks, or another model acting as a judge
+        for subjective ones. Click "What sample prompts back this evidence" under any result to see
+        the actual prompts and judge them yourself.
+      </p>
+      <p class="settings-sub" style="font-size:0.85rem;">
+        <b>Known limits:</b> OpenAI only today (no Claude/Google/OpenRouter yet). "Released" is when
+        a model was added to OpenAI's API, not its training-data knowledge cutoff — that isn't
+        published anywhere this tool can read. Empty results mean the local catalog hasn't been
+        populated yet (<code>model-selector discover</code> + probes are run manually, not automatically).
+      </p>
+    </div>
+  </div>
+
   <!-- About view — trust/compliance/story page: why routing quality gets
        evaluated at all, how key privacy is actually provable (not just
        claimed), and where this app currently stands on the EU AI Act. -->
@@ -650,6 +760,27 @@ track — the high-pitched backing vocals were Morrissey's own voice, pitch-shif
         EU users rely on it.
       </p>
     </div>
+
+    <!-- Legal / Impressum — placeholder scaffold (real values not supplied
+         yet). EU Impressum requirements (TMG §5 / ECG-equivalent, roughly):
+         legal name, registered address, register entry, VAT ID, and a named
+         person responsible for content. Fill in the [TODO] fields with
+         Cogtrix.EU's actual details before this page is treated as live. -->
+    <div class="card">
+      <h2 class="settings-title">Legal / Impressum</h2>
+      <p class="settings-sub" style="font-size:0.8rem;">
+        Placeholder — required fields below are not yet filled in with real values.
+        This is not a substitute for a proper legal review.
+      </p>
+      <dl class="settings-sub" style="font-size:0.85rem; display:grid; grid-template-columns:max-content 1fr; gap:0.35rem 1rem; margin:0;">
+        <dt><b>Provider</b></dt><dd>Cogtrix.EU [TODO: full legal entity name]</dd>
+        <dt><b>Registered address</b></dt><dd>[TODO: street, postal code, city, country]</dd>
+        <dt><b>Register entry</b></dt><dd>[TODO: commercial register name + number, if applicable]</dd>
+        <dt><b>VAT ID</b></dt><dd>[TODO: VAT identification number, if applicable]</dd>
+        <dt><b>Responsible for content</b></dt><dd>[TODO: name of the person responsible, per applicable law]</dd>
+        <dt><b>Contact</b></dt><dd>[TODO: email and/or phone]</dd>
+      </dl>
+    </div>
   </div>
 </main>
 
@@ -714,11 +845,15 @@ function showView(name) {
   document.getElementById("settingsBtn").classList.toggle("active", name === "settings");
   document.getElementById("feedbackBtn").classList.toggle("active", name === "feedback");
   document.getElementById("aboutBtn").classList.toggle("active", name === "about");
+  document.getElementById("taskFinderBtn").classList.toggle("active", name === "taskFinder");
   if (name === "feedback") renderFeedbackList();
   if (name === "settings") renderNetworkLog();
+  if (name === "taskFinder") { loadTaskFinderCategories(); renderTaskFinderHistory(); }
+  else { const p = document.getElementById("tfWhatsThisPopup"); if (p) p.style.display = "none"; }
 }
 document.getElementById("settingsBtn").addEventListener("click", () => showView("settings"));
 document.getElementById("aboutBtn").addEventListener("click", () => showView("about"));
+document.getElementById("taskFinderBtn").addEventListener("click", () => showView("taskFinder"));
 document.getElementById("aboutEvaluatorLink").addEventListener("click", (ev) => { ev.preventDefault(); showView("feedback"); });
 document.getElementById("aboutFeedbackLink").addEventListener("click", (ev) => { ev.preventDefault(); showView("feedback"); });
 document.getElementById("aboutSettingsLink").addEventListener("click", (ev) => { ev.preventDefault(); showView("settings"); });
@@ -1122,6 +1257,223 @@ async function fetchPricing(modelNames) {
   });
   return res.ok ? res.json() : {};
 }
+
+// ---------- Task Finder (model-selector) ----------
+// A separate tool from the routing pipeline above: instead of scoring this
+// app's own 17-model registry against user-set cost/env/latency weights, it
+// asks model-selector's local catalog "what's the cheapest model with
+// measured evidence it actually passes this kind of task" (see
+// model-selector/README.md). Categories loaded once per view visit rather
+// than cached at page load, since they're static but the endpoint is cheap
+// and this keeps the dropdown correct even if the catalog changes underfoot.
+let _tfCategoriesLoaded = false;
+async function loadTaskFinderCategories() {
+  if (_tfCategoriesLoaded) return;
+  try {
+    const res = await fetch("/model-selector/categories");
+    if (!res.ok) return;
+    const { categories } = await res.json();
+    const select = document.getElementById("tfCategory");
+    for (const c of categories) {
+      const opt = document.createElement("option");
+      opt.value = c.key;
+      opt.textContent = c.label;
+      select.appendChild(opt);
+    }
+    _tfCategoriesLoaded = true;
+  } catch (e) { /* dropdown just stays auto-detect-only */ }
+}
+
+function renderTaskFinderSamples(samples) {
+  if (!samples || samples.length === 0) return "";
+  const items = samples.map(s =>
+    `<details style="margin:0.2rem 0;"><summary style="cursor:pointer; font-size:0.8rem;">` +
+    `${escapeHtml(s.id)} <span style="opacity:0.6;">(${escapeHtml(s.difficulty)})</span></summary>` +
+    `<pre style="white-space:pre-wrap; font-size:0.78rem; background:#f4f6f2; padding:0.5rem; border-radius:6px;">${escapeHtml(s.input)}</pre></details>`
+  ).join("");
+  return `<details style="margin-top:0.6rem;">` +
+    `<summary style="cursor:pointer;">📋 What sample prompts back this evidence (${samples.length})</summary>` +
+    `<div style="margin-top:0.4rem;">${items}</div></details>`;
+}
+
+function renderTaskFinderResult(data) {
+  const el = document.getElementById("tfResult");
+  const rec = data.recommendation;
+  const header = `<p class="settings-sub">Category: <b>${escapeHtml(data.category)}</b>` +
+    ` (${escapeHtml(data.classified_by)}) · Difficulty: <b>${escapeHtml(data.difficulty)}</b></p>`;
+  if (!data.candidates || data.candidates.length === 0) {
+    el.innerHTML = header + `<p class="settings-sub">No models found for this category yet — ` +
+      `the local catalog is empty until <code>model-selector discover</code> (and probes) have been ` +
+      `run. This wires up the tool, it doesn't seed the data.</p>` + renderTaskFinderSamples(data.samples);
+    return;
+  }
+  // Cheapest 5 (candidates already arrive cheapest-first), shown most-
+  // expensive-of-the-five first so cost reads as an ascending staircase
+  // toward the cheapest option at the bottom of the table.
+  const top5DescCost = data.candidates.slice(0, 5).slice().reverse();
+  const rows = top5DescCost.map(c => {
+    const cost = c.est_cost_per_call != null ? `$${c.est_cost_per_call.toFixed(5)}` : "—";
+    const pass = c.pass_rate != null ? `${Math.round(c.pass_rate * 100)}% (n=${c.n_probes})` : "unprobed";
+    const isRec = rec && c.model_id === rec.model_id && c.effort === rec.effort;
+    const released = c.released || "—";
+    return `<tr${isRec ? ' style="font-weight:600;"' : ''}>` +
+      `<td>${isRec ? "✅ " : ""}${escapeHtml(c.model_id)}</td>` +
+      `<td>${escapeHtml(c.effort || "—")}</td>` +
+      `<td>${cost}</td><td>${pass}</td>` +
+      `<td>${escapeHtml(released)}</td>` +
+      `<td>${escapeHtml((c.notes || []).join("; "))}</td></tr>`;
+  }).join("");
+  el.innerHTML = header +
+    (rec ? `<p class="settings-sub">Recommendation: <b>${escapeHtml(rec.model_id)}</b> — cheapest model ` +
+      `that meets the pass-rate bar for this difficulty.</p>` :
+      `<p class="settings-sub">No candidate has enough probe evidence to clear the pass-rate bar yet — ` +
+      `showing candidates by cost only.</p>`) +
+    `<p class="settings-sub" style="font-size:0.78rem;">Top 5 cheapest candidates, most expensive of the five first. ` +
+    `"Released" is when OpenAI's API first listed the model — not its training-data knowledge cutoff, which isn't ` +
+    `publicly exposed anywhere this tool can scrape.</p>` +
+    `<table style="width:100%; border-collapse:collapse; font-size:0.85rem;">` +
+    `<thead><tr><th align="left">Model</th><th align="left">Effort</th>` +
+    `<th align="left">Est. cost/call</th><th align="left">Pass rate</th><th align="left">Released</th>` +
+    `<th align="left">Notes</th></tr></thead>` +
+    `<tbody>${rows}</tbody></table>` + renderTaskFinderSamples(data.samples);
+}
+
+// ---------- Task Finder history ("previously selected" tasks) ----------
+async function renderTaskFinderHistory() {
+  const el = document.getElementById("tfHistory");
+  try {
+    const res = await fetch("/model-selector/history?limit=20");
+    if (!res.ok) { el.innerHTML = ""; return; }
+    const { tasks } = await res.json();
+    if (!tasks || tasks.length === 0) {
+      el.innerHTML = `<p class="settings-sub">No tasks run yet.</p>`;
+      return;
+    }
+    el.innerHTML = tasks.map((t, i) => {
+      const rec = t.recommendation;
+      const recText = rec ? `${escapeHtml(rec.model_id)} ($${rec.est_cost_per_call.toFixed(5)})` : "no recommendation yet";
+      const when = new Date(t.timestamp * 1000).toLocaleString();
+      const sampleTag = t.sample_input ? ` · 📎 sample used` : "";
+      return `<div class="chat-item" data-hist-index="${i}" style="cursor:pointer;" title="Click to re-run">` +
+        `<b>${escapeHtml(t.description)}</b><br>` +
+        `<span style="font-size:0.75rem; opacity:0.7;">${escapeHtml(t.category)}/${escapeHtml(t.difficulty)} → ${recText}${sampleTag} · ${when}</span>` +
+        `</div>`;
+    }).join("");
+    el.querySelectorAll("[data-hist-index]").forEach(node => {
+      node.addEventListener("click", () => {
+        const t = tasks[parseInt(node.dataset.histIndex, 10)];
+        document.getElementById("tfDescription").value = t.description;
+        document.getElementById("tfSampleInput").value = t.sample_input || "";
+        document.getElementById("tfCategory").value = t.category || "";
+        document.getElementById("tfDifficulty").value = t.difficulty || "";
+        document.getElementById("tfSubmit").click();
+      });
+    });
+  } catch (e) { el.innerHTML = ""; }
+}
+
+document.getElementById("tfWhatsThisLink").addEventListener("click", (ev) => {
+  ev.preventDefault();
+  document.getElementById("tfWhatsThisPopup").style.display = "block";
+});
+document.getElementById("tfWhatsThisClose").addEventListener("click", (ev) => {
+  ev.preventDefault();
+  document.getElementById("tfWhatsThisPopup").style.display = "none";
+});
+
+document.getElementById("tfNewTaskBtn").addEventListener("click", () => {
+  document.getElementById("tfDescription").value = "";
+  document.getElementById("tfSampleInput").value = "";
+  document.getElementById("tfRubric").value = "";
+  document.getElementById("tfCategory").value = "";
+  document.getElementById("tfDifficulty").value = "";
+  document.getElementById("tfError").textContent = "";
+  document.getElementById("tfResult").innerHTML = "";
+  document.getElementById("tfDescription").focus();
+});
+
+function renderTrialOutcomes(outcomes) {
+  if (!outcomes || outcomes.length === 0) return "";
+  const rows = outcomes.map(o =>
+    `<tr><td>${o.ok ? "✅" : "❌"} ${escapeHtml(o.model_id)}</td>` +
+    `<td>$${(o.cost_usd || 0).toFixed(5)}</td>` +
+    `<td style="font-size:0.78rem;">${escapeHtml(o.detail || o.error || "")}</td></tr>`
+  ).join("");
+  return `<div style="margin-top:0.8rem; padding:0.8rem; background:#fff7ea; border-radius:8px;">` +
+    `<p class="settings-sub" style="margin:0 0 0.4rem;"><b>Live trial results</b> — real models were called ` +
+    `with your sample, cheapest first, stopping at the first PASS:</p>` +
+    `<table style="width:100%; border-collapse:collapse; font-size:0.85rem;">` +
+    `<thead><tr><th align="left">Model</th><th align="left">Cost</th><th align="left">Grader verdict</th></tr></thead>` +
+    `<tbody>${rows}</tbody></table></div>`;
+}
+
+document.getElementById("tfTrialBtn").addEventListener("click", async () => {
+  const description = document.getElementById("tfDescription").value.trim();
+  const sampleInput = document.getElementById("tfSampleInput").value.trim();
+  const rubric = document.getElementById("tfRubric").value.trim();
+  const errorEl = document.getElementById("tfError");
+  errorEl.textContent = "";
+  if (!description) { errorEl.textContent = "Describe the task first."; return; }
+  if (!sampleInput) { errorEl.textContent = "A sample input is required to run a real trial — add one above."; return; }
+  if (!rubric) { errorEl.textContent = "A rubric is required to grade a real response — add one above."; return; }
+  if (!confirm("This will call real models with your sample and spend real API money (usually fractions of a cent, cheapest-first, stopping at the first pass). Continue?")) return;
+  document.getElementById("tfResult").innerHTML = `<p class="settings-sub">Running trial against real models…</p>`;
+  try {
+    const res = await fetch("/model-selector/trial", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        description, sample_input: sampleInput, rubric,
+        category: document.getElementById("tfCategory").value || null,
+        difficulty: document.getElementById("tfDifficulty").value || null,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.error || "Something went wrong.";
+      document.getElementById("tfResult").innerHTML = "";
+      return;
+    }
+    renderTaskFinderResult(data);
+    document.getElementById("tfResult").innerHTML += renderTrialOutcomes(data.trial_outcomes);
+    renderTaskFinderHistory();
+  } catch (e) {
+    errorEl.textContent = "Request failed — is the server running?";
+    document.getElementById("tfResult").innerHTML = "";
+  }
+});
+
+document.getElementById("tfSubmit").addEventListener("click", async () => {
+  const description = document.getElementById("tfDescription").value.trim();
+  const errorEl = document.getElementById("tfError");
+  errorEl.textContent = "";
+  document.getElementById("tfResult").innerHTML = "";
+  if (!description) {
+    errorEl.textContent = "Describe the task first.";
+    return;
+  }
+  try {
+    const res = await fetch("/model-selector/rank", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        description,
+        sample_input: document.getElementById("tfSampleInput").value.trim() || null,
+        category: document.getElementById("tfCategory").value || null,
+        difficulty: document.getElementById("tfDifficulty").value || null,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.error || "Something went wrong.";
+      return;
+    }
+    renderTaskFinderResult(data);
+    renderTaskFinderHistory();
+  } catch (e) {
+    errorEl.textContent = "Request failed — is the server running?";
+  }
+});
 
 // promptText/responseText: retained server-side for a future offline
 // quality-judging pipeline (see outcome_log.py). This is real content

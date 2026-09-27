@@ -1,0 +1,12 @@
+suite: tts
+category: tts
+description: Synthesized audio is round-tripped through the cheapest transcription model and graded by WER.
+prompts:
+  - id: short_prompt
+    difficulty: easy
+    input: "Your order has shipped and will arrive on Thursday."
+    grader: {type: wer, max_wer: 0.1}
+  - id: numbers_abbrev
+    difficulty: medium
+    input: "Call 555-0142 before 9:30 a.m. on Nov. 3rd; reference number AB-7731."
+    grader: {type: wer, max_wer: 0.25}

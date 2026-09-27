@@ -1,1 +1,4 @@
 ecologits
+pyyaml
+httpx
+markdownify

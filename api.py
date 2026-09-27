@@ -30,6 +30,25 @@
                  (prompt, response) pair, logged as a "judged" outcome — see
                  outcome_log.judge_penalty_rate and router.py's _rank for how this
                  feeds into ranking as its own signal, separate from human votes.
+  GET  /model-selector/categories -> task categories model-selector ranks within (see
+                 model-selector/src/model_selector/taxonomy.py) — powers the Task Finder view's
+                 category dropdown.
+  POST /model-selector/rank {"description", "sample_input"?, "category"?, "difficulty"?} ->
+                 cheapest-that-works ranking for a task, from model-selector's local catalog
+                 (model-selector/README.md), plus "samples" (the actual probe prompts backing
+                 any pass-rate evidence shown, for transparency) and each candidate's "released"
+                 date (when OpenAI's /v1/models first listed it — NOT a training-data knowledge
+                 cutoff, which no discovery source here exposes; see
+                 model_selector/discovery/openai_docs.py's models_from_api docstring) —
+                 appends the request to MS_HISTORY_PATH (task_history.jsonl) as a side effect.
+                 Empty/no recommendation until `model-selector discover` (+ probes) has run.
+  GET  /model-selector/history?limit=<n> -> past Task Finder requests, newest first — powers the
+                 "previously run" list in the UI.
+  POST /model-selector/trial {"description", "sample_input", "rubric"? or "expect"?, "category"?,
+                 "difficulty"?, "max_models"?} -> like /model-selector/rank, but ACTUALLY CALLS
+                 real models (cheapest-first, stops at first PASS) with the given sample and grades
+                 the real response — spends real money on this server's own OPENAI_API_KEY (never
+                 a user's BYOK key). Requires OPENAI_API_KEY set on the server; 400 if missing.
   GET  /         serves the web UI (index.html)
 
   PRIVACY: /feedback and /outcome accept prompt_text/response_text for a future
@@ -50,9 +69,11 @@ docs) outgrow this. Run: python3 api.py --serve
 """
 import json
 import os
+import sys
 import time
 import uuid
 from collections import defaultdict, deque
+from dataclasses import asdict
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
@@ -61,6 +82,110 @@ from router import route, DEFAULT_WEIGHTS
 from explain import explain
 from outcome_log import log_outcome, get_user_vote, read_outcomes, VOTE_OUTCOMES, RESPONSE_VOTE_OUTCOMES, ALL_VOTE_OUTCOMES, VALID_OUTCOMES
 from model_registry import REGISTRY
+
+
+def _load_dotenv(path: Path):
+    """Same minimal .env loader as evaluate.py (kept as a separate copy —
+    it's ten lines, not worth a shared module for). Needed so `OPENAI_API_KEY`
+    (added to .env for model-selector) actually reaches this process; nothing
+    else here previously read .env at all."""
+    if not path.exists():
+        return
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+_load_dotenv(Path(__file__).parent / ".env")
+
+# model-selector lives as a standalone sibling project (its own pyproject.toml,
+# tests, catalog) rather than merged into this package — see
+# model-selector/HANDOFF.md. Add its src/ to the path instead of installing it,
+# so Quindral's own deps/build stay untouched.
+sys.path.insert(0, str(Path(__file__).parent / "model-selector" / "src"))
+from model_selector.config import Settings as MSSettings
+from model_selector.store import Store as MSStore
+from model_selector.ranker import rank as ms_rank, trial as ms_trial, TaskSpec as MSTaskSpec, ranking_to_dict, CATEGORY_SUITE
+from model_selector.probes.runner import load_suite, ProbeRunner
+from model_selector.taxonomy import CATEGORIES as MS_CATEGORIES
+
+# Same catalog Quindral's own data dir convention would use; empty/no
+# recommendation until `model-selector discover` (+ probes) has actually
+# been run against it — see model-selector/README.md.
+_ms_settings = MSSettings(home=Path(os.environ.get("QUINDRAL_DATA_DIR", "./data")) / "model_selector").ensure()
+_ms_store = MSStore(_ms_settings.db_path)
+
+# Every Task Finder rank request gets appended here — this is the "previously
+# selected tasks" history the UI lists, and it's a plain JSONL append (same
+# pattern as outcome_log.py's outcomes.jsonl) rather than a new sqlite table,
+# since it's just a browsing convenience, not something ranked/queried.
+MS_HISTORY_PATH = _ms_settings.home / "task_history.jsonl"
+
+
+def _log_task_finder_history(task: "MSTaskSpec", ranking) -> None:
+    rec = {
+        "timestamp": time.time(),
+        "description": task.description,
+        "sample_input": task.sample_input,
+        "category": ranking.category,
+        "difficulty": ranking.difficulty,
+        "classified_by": ranking.classified_by,
+        "recommendation": (
+            {"model_id": ranking.recommendation.model_id, "est_cost_per_call": ranking.recommendation.est_cost_per_call}
+            if ranking.recommendation else None
+        ),
+    }
+    try:
+        with open(MS_HISTORY_PATH, "a") as f:
+            f.write(json.dumps(rec) + "\n")
+    except OSError:
+        pass  # best-effort, never blocks the actual rank response
+
+
+def _read_task_finder_history(limit: int = 20) -> list[dict]:
+    if not MS_HISTORY_PATH.exists():
+        return []
+    with open(MS_HISTORY_PATH) as f:
+        lines = f.readlines()
+    return [json.loads(line) for line in lines[-limit:]][::-1]  # newest first
+
+
+def _task_finder_samples(category: str, difficulty: str) -> list[dict]:
+    """The full probe suite for this category — this is the "what sample was
+    used" transparency behind any pass-rate shown. Deliberately NOT filtered
+    to >= difficulty: ranker.rank() itself falls back to evidence from ANY
+    difficulty when nothing exists at/above the task's level (see
+    ranker.py's `relevant`/`or` fallback), so a same-filtered list here would
+    silently hide the very prompts a shown pass_rate is actually backed by."""
+    suite_name = CATEGORY_SUITE.get(category)
+    if not suite_name:
+        return []
+    try:
+        suite = load_suite(suite_name)
+    except Exception:
+        return []
+    return [
+        {"id": p["id"], "difficulty": p["difficulty"], "input": p.get("input") or f"[generated: {p.get('generator')}]"}
+        for p in suite.get("prompts", [])
+    ]
+
+
+def _attach_release_dates(candidates: list[dict]) -> None:
+    """Tags each candidate with `released` (the date OpenAI's /v1/models API
+    first listed it) when known. This is NOT a training-data knowledge
+    cutoff — no discovery source this scrapes exposes that (checked: the
+    models index page lists no cutoff dates at all) — labeled as "Released"
+    everywhere it's shown, not "Knowledge cutoff", so it isn't misrepresented
+    as something more precise than it is."""
+    for c in candidates:
+        row = _ms_store.db.execute(
+            "SELECT extra FROM models WHERE provider='openai' AND model_id=?", (c["model_id"],)
+        ).fetchone()
+        extra = json.loads(row["extra"]) if row and row["extra"] else {}
+        c["released"] = extra.get("api_created")
 
 # Shared-secret for the evaluator's bulk-pull access to /outcomes — there's no
 # real accounts/auth system yet, so this is the simplest thing that isn't
@@ -127,6 +252,11 @@ class Handler(BaseHTTPRequestHandler):
             self._send_file(PROVIDERS_JS, "text/javascript; charset=utf-8")
         elif path == "/outcomes":
             self._handle_list_outcomes()
+        elif path == "/model-selector/categories":
+            self._send(200, {"categories": [{"key": k, "label": c.label} for k, c in MS_CATEGORIES.items()]})
+        elif path == "/model-selector/history":
+            limit = int(parse_qs(urlsplit(self.path).query).get("limit", ["20"])[0])
+            self._send(200, {"tasks": _read_task_finder_history(limit)})
         else:
             self._send(404, {"error": "not found"})
 
@@ -194,6 +324,10 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_pricing()
         elif self.path == "/outcome":
             self._handle_outcome()
+        elif self.path == "/model-selector/rank":
+            self._handle_model_selector_rank()
+        elif self.path == "/model-selector/trial":
+            self._handle_model_selector_trial()
         else:
             self._send(404, {"error": "not found"})
 
@@ -335,6 +469,93 @@ class Handler(BaseHTTPRequestHandler):
             self._send(400, {"error": str(e)})
             return
         self._send(200, record)
+
+    def _handle_model_selector_rank(self):
+        """Cheapest-that-works ranking for a task, via model-selector's local
+        catalog — a separate tool from this app's own router (see
+        model-selector/README.md), not a replacement for it."""
+        try:
+            body = self._read_json_body()
+        except json.JSONDecodeError:
+            self._send(400, {"error": "invalid JSON body"})
+            return
+
+        description = body.get("description")
+        if not description:
+            self._send(400, {"error": "'description' is required"})
+            return
+
+        task = MSTaskSpec(
+            description=description,
+            sample_input=body.get("sample_input"),
+            category=body.get("category") or None,
+            difficulty=body.get("difficulty") or None,
+        )
+        try:
+            ranking = ms_rank(_ms_store, task)
+        except Exception as e:
+            self._send(500, {"error": f"model-selector rank failed: {e}"})
+            return
+        _log_task_finder_history(task, ranking)
+        result = ranking_to_dict(ranking)
+        _attach_release_dates(result["candidates"])
+        result["samples"] = _task_finder_samples(ranking.category, ranking.difficulty)
+        self._send(200, result)
+
+    def _handle_model_selector_trial(self):
+        """Actually calls real models with the user's own sample, cheapest-
+        first, stopping at the first PASS — unlike /model-selector/rank
+        (free, estimate-only), this spends real money on the API key in this
+        server's own environment (OPENAI_API_KEY, NOT a user's BYOK key —
+        BYOK never reaches this server at all, same boundary as everywhere
+        else in this app). Bounded by max_models (default 3, capped at 5) so
+        a request can't cascade through the whole catalog."""
+        try:
+            body = self._read_json_body()
+        except json.JSONDecodeError:
+            self._send(400, {"error": "invalid JSON body"})
+            return
+
+        description = body.get("description")
+        sample_input = body.get("sample_input")
+        if not description:
+            self._send(400, {"error": "'description' is required"})
+            return
+        if not sample_input:
+            self._send(400, {"error": "'sample_input' is required for a trial — it's what actually gets sent to models"})
+            return
+        rubric = body.get("rubric")
+        expect = body.get("expect")
+        if not rubric and not expect:
+            self._send(400, {"error": "'rubric' or 'expect' is required — a trial needs a way to grade the response"})
+            return
+        if not os.environ.get("OPENAI_API_KEY"):
+            self._send(400, {"error": "server has no OPENAI_API_KEY configured — a trial can't call real models without one"})
+            return
+
+        task = MSTaskSpec(
+            description=description, sample_input=sample_input,
+            category=body.get("category") or None, difficulty=body.get("difficulty") or None,
+        )
+        max_models = max(1, min(int(body.get("max_models", 3)), 5))
+        try:
+            ranking = ms_rank(_ms_store, task)
+            runner = ProbeRunner(_ms_store, _ms_settings, log=lambda *_: None)
+            outcomes = ms_trial(_ms_store, runner, ranking, rubric=rubric, expect=expect, max_models=max_models)
+            # Re-rank: the trial just wrote fresh probe evidence for this exact
+            # task (suite "custom:<hash>"), which ranker.rank() prioritizes
+            # over generic suite evidence for the same description — this is
+            # what makes the recommendation reflect what was just verified.
+            updated = ms_rank(_ms_store, task)
+        except Exception as e:
+            self._send(500, {"error": f"model-selector trial failed: {e}"})
+            return
+        _log_task_finder_history(task, updated)
+        result = ranking_to_dict(updated)
+        _attach_release_dates(result["candidates"])
+        result["samples"] = _task_finder_samples(updated.category, updated.difficulty)
+        result["trial_outcomes"] = [asdict(o) for o in outcomes]
+        self._send(200, result)
 
     def _handle_judge(self):
         """Offline evaluator writes verdicts here — admin-token required.

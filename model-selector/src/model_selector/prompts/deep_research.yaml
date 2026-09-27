@@ -1,0 +1,64 @@
+suite: deep_research
+category: deep_research
+expensive: true
+description: >
+  Research tasks needing web search + synthesis. Graded by required facts + citation presence
+  and an LLM rubric. These are costly: run with --allow-expensive.
+prompts:
+  - id: price_lookup_cited
+    difficulty: medium
+    input: |
+      Using current official OpenAI documentation, state the standard input and output price per 1M tokens
+      for the cheapest current flagship GPT model, and cite the URL you used.
+    grader: {type: all_of, checks: [{type: contains, expect: "developers.openai.com"}, {type: regex, expect: "\\$\\s?\\d"}]}
+    max_output_tokens: 4000
+
+  - id: compare_transcription
+    difficulty: hard
+    input: |
+      Compare OpenAI's current speech-to-text models for batch transcription of 1,000 hours of English podcasts:
+      cost per hour for each, and which you would pick for accuracy vs cost. Cite sources.
+    grader:
+      type: llm_judge
+      rubric: |
+        PASS only if: (1) lists at least three current OpenAI transcription models, (2) gives a per-hour or
+        per-minute cost for each, (3) computes a total for 1,000 hours, (4) cites at least one openai.com URL.
+    max_output_tokens: 8000
+
+  # --- Recency probes: no static "expect" is possible here (the correct answer
+  # changes daily) — these exist specifically to catch a model silently answering
+  # from stale training data instead of actually searching. Only meaningful for
+  # models with real web_search access (the `deep_research` adapter); a plain
+  # text-only model should be excluded from this category rather than probed
+  # here and marked FAIL for lacking a capability it was never meant to have.
+  - id: recent_notable_deaths
+    difficulty: medium
+    tags: [recency, web_search]
+    input: |
+      Search for and name at least one real, notable public figure who died within the past 7 days
+      of today's actual date. Reply with their name and the date they died, plus the URL you
+      confirmed it from. If you cannot search the live web, say so explicitly instead of guessing.
+    grader:
+      type: llm_judge
+      rubric: |
+        PASS only if the response names a specific real person with a specific death date, cites a
+        checkable source URL, and the event is plausibly recent (not a well-known death from years
+        ago that a model could know from training data alone, e.g. not someone who died before 2025).
+        An honest "I can't browse the live web" refusal is a FAIL for this probe (it's testing
+        whether the model actually has/uses current information, not whether it can be honest about
+        lacking it) — but a confident, unsourced, or clearly stale-sounding answer is also a FAIL.
+    max_output_tokens: 2000
+
+  - id: recent_news_headline
+    difficulty: medium
+    tags: [recency, web_search]
+    input: |
+      Search for and report one specific, real news headline from within the last 48 hours. Include
+      the date and the source URL.
+    grader:
+      type: llm_judge
+      rubric: |
+        PASS only if the response gives a concrete, specific headline (not a vague generality like
+        "there have been developments in..."), a date within the last 2 days, and a checkable source
+        URL. FAIL if it hedges without attempting a real search, or the date/URL is missing.
+    max_output_tokens: 2000

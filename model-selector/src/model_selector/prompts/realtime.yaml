@@ -1,0 +1,16 @@
+suite: realtime
+category: realtime_voice
+description: >
+  Realtime sessions are estimated from scenario assumptions rather than probed (WebSocket probing TODO).
+  Audio token rates are ASSUMPTIONS — calibrate from a real session's usage and edit here.
+assumptions:
+  user_audio_tokens_per_second: 10
+  model_audio_tokens_per_second: 20
+scenarios:
+  - id: support_call_5min
+    difficulty: medium
+    minutes: 5
+    user_talk_fraction: 0.5
+    model_talk_fraction: 0.4
+    text_tokens_per_turn: 800      # instructions/context re-sent per turn
+    turns: 12

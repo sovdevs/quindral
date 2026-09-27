@@ -1,0 +1,99 @@
+suite: reasoning
+category: reasoning
+description: >
+  Text/reasoning variety ladder. Easy = extraction/formatting any small model should nail;
+  medium = short multi-step; hard = counting/constraint problems where cheap models and
+  low reasoning effort typically fail. Every item is machine-gradable.
+prompts:
+  - id: extract_invoice_json
+    difficulty: easy
+    tags: [extraction, json]
+    input: |
+      Extract the invoice number and total due from the text below. Reply with ONLY a JSON object
+      with keys "invoice_number" (string) and "total" (number).
+      ---
+      ACME Supplies Ltd — Invoice INV-20931, issued 12 May. 14 x widgets @ $91.75.
+      Total due: $1,284.50. Payment within 30 days.
+    grader: {type: json_fields, expect: {invoice_number: "INV-20931", total: 1284.5}}
+    max_output_tokens: 200
+
+  - id: sentiment_one_word
+    difficulty: easy
+    tags: [classification]
+    input: |
+      Classify the sentiment of this review as exactly one word: positive, negative, or mixed.
+      Review: "Arrived two weeks late, the box was crushed and support never replied."
+    grader: {type: exact, expect: negative, normalize: true}
+    max_output_tokens: 20
+
+  - id: date_to_iso
+    difficulty: easy
+    tags: [formatting]
+    input: "Convert 'the 3rd of March 2024' to ISO 8601 date format. Reply with the date only."
+    grader: {type: exact, expect: "2024-03-03", normalize: true}
+    max_output_tokens: 20
+
+  - id: unit_price_word_problem
+    difficulty: medium
+    tags: [math]
+    input: "Pens are sold at 3 for $2. How many dollars do 27 pens cost? Reply with the number only."
+    grader: {type: numeric, expect: 18, tol: 0.001}
+    max_output_tokens: 400
+
+  - id: ordering_logic
+    difficulty: medium
+    tags: [logic]
+    input: |
+      Alice is taller than Bob. Carol is shorter than Bob. Dan is taller than Alice.
+      Who is the second shortest? Reply with the name only.
+    grader: {type: exact, expect: bob, normalize: true}
+    max_output_tokens: 400
+
+  - id: code_trace
+    difficulty: medium
+    tags: [code_reasoning]
+    input: |
+      What does this Python print? Reply with the output only.
+      x = [1, 2, 3, 4, 5]
+      print(sum(v * v for v in x if v % 2))
+    grader: {type: numeric, expect: 35}
+    max_output_tokens: 400
+
+  - id: train_arrival
+    difficulty: medium
+    tags: [math, time]
+    input: "A train departs at 14:40 and travels 210 km at a constant 84 km/h. At what time does it arrive? Reply as HH:MM only."
+    grader: {type: exact, expect: "17:10", normalize: true}
+    max_output_tokens: 400
+
+  - id: inclusion_exclusion
+    difficulty: hard
+    tags: [math, counting]
+    input: "How many positive integers n <= 1000 are divisible by 3 or by 5, but not by 15? Reply with the number only."
+    grader: {type: numeric, expect: 401}
+    max_output_tokens: 2000
+
+  - id: crt_smallest
+    difficulty: hard
+    tags: [math, number_theory]
+    input: "Find the smallest positive integer that leaves remainder 1 when divided by each of 2, 3, 4, 5 and 6, and is divisible by 7. Reply with the number only."
+    grader: {type: numeric, expect: 301}
+    max_output_tokens: 2000
+
+  - id: weekday
+    difficulty: hard
+    tags: [calendar]
+    input: "What day of the week was 29 February 2024? Reply with the weekday name only."
+    grader: {type: exact, expect: thursday, normalize: true}
+    max_output_tokens: 2000
+
+  - id: needle_20k
+    difficulty: hard
+    tags: [long_context, retrieval]
+    generator: needle
+    params:
+      haystack_tokens: 20000
+      needle: "The vault access code for Project Heron is 7-4-1-9-Q."
+      question: "What is the vault access code for Project Heron? Reply with the code only."
+    grader: {type: contains, expect: "7-4-1-9-Q"}
+    max_output_tokens: 100
