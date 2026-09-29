@@ -39,16 +39,24 @@
                  any pass-rate evidence shown, for transparency) and each candidate's "released"
                  date (when OpenAI's /v1/models first listed it — NOT a training-data knowledge
                  cutoff, which no discovery source here exposes; see
-                 model_selector/discovery/openai_docs.py's models_from_api docstring) —
+                 model_selector/discovery/openai_docs.py's models_from_api docstring) and
+                 "description" (short catalog label, e.g. "GPT-4.1 nano") —
                  appends the request to MS_HISTORY_PATH (task_history.jsonl) as a side effect.
                  Empty/no recommendation until `model-selector discover` (+ probes) has run.
   GET  /model-selector/history?limit=<n> -> past Task Finder requests, newest first — powers the
                  "previously run" list in the UI.
   POST /model-selector/trial {"description", "sample_input", "rubric"? or "expect"?, "category"?,
                  "difficulty"?, "max_models"?} -> like /model-selector/rank, but ACTUALLY CALLS
-                 real models (cheapest-first, stops at first PASS) with the given sample and grades
-                 the real response — spends real money on this server's own OPENAI_API_KEY (never
-                 a user's BYOK key). Requires OPENAI_API_KEY set on the server; 400 if missing.
+                 real OpenAI models (cheapest-first, stops at first PASS; Google/Gemini has no
+                 execution adapter yet) with the given sample and grades the real response —
+                 spends real money on this server's own OPENAI_API_KEY (never a user's BYOK key).
+                 Requires OPENAI_API_KEY set on the server; 400 if missing. Both rank and trial
+                 responses carry a server-minted "result_id" for /model-selector/feedback below.
+  POST /model-selector/feedback {"result_id", "vote": "up"|"down", "client_id"?} -> thumbs
+                 up/down on one specific Task Finder result (rank or trial), keyed by
+                 (result_id, client_id, timestamp) — appended to task_feedback.jsonl. client_id
+                 falls back to the X-Quindral-Client-Id header (same anonymous per-browser id
+                 used by /feedback's routing votes) if not in the body.
   GET  /         serves the web UI (index.html)
 
   PRIVACY: /feedback and /outcome accept prompt_text/response_text for a future
@@ -69,6 +77,7 @@ docs) outgrow this. Run: python3 api.py --serve
 """
 import json
 import os
+import re
 import sys
 import time
 import uuid
@@ -108,7 +117,7 @@ _load_dotenv(Path(__file__).parent / ".env")
 sys.path.insert(0, str(Path(__file__).parent / "model-selector" / "src"))
 from model_selector.config import Settings as MSSettings
 from model_selector.store import Store as MSStore
-from model_selector.ranker import rank as ms_rank, trial as ms_trial, TaskSpec as MSTaskSpec, ranking_to_dict, CATEGORY_SUITE
+from model_selector.ranker import rank as ms_rank, trial as ms_trial, TaskSpec as MSTaskSpec, CATEGORY_SUITE
 from model_selector.probes.runner import load_suite, ProbeRunner
 from model_selector.taxonomy import CATEGORIES as MS_CATEGORIES
 
@@ -125,24 +134,48 @@ _ms_store = MSStore(_ms_settings.db_path)
 MS_HISTORY_PATH = _ms_settings.home / "task_history.jsonl"
 
 
-def _log_task_finder_history(task: "MSTaskSpec", ranking) -> None:
+def _log_task_finder_history(task: "MSTaskSpec", result: dict) -> None:
+    """`result` is the dict shape returned to the client (category/
+    difficulty/classified_by/recommendation) — same for both a plain rank
+    and a combined multi-provider rank, so this doesn't care which produced
+    it. Mints and stamps `result["result_id"]` in place — the same id the
+    client gets back, so a later thumbs vote on this specific result
+    (see _handle_model_selector_feedback) can reference it."""
+    result_id = uuid.uuid4().hex
+    result["result_id"] = result_id
+    rec = result.get("recommendation")
+    recommendation = {"model_id": rec["model_id"], "est_cost_per_call": rec.get("est_cost_per_call")} if rec else None
     rec = {
         "timestamp": time.time(),
+        "result_id": result_id,
         "description": task.description,
         "sample_input": task.sample_input,
-        "category": ranking.category,
-        "difficulty": ranking.difficulty,
-        "classified_by": ranking.classified_by,
-        "recommendation": (
-            {"model_id": ranking.recommendation.model_id, "est_cost_per_call": ranking.recommendation.est_cost_per_call}
-            if ranking.recommendation else None
-        ),
+        "category": result["category"],
+        "difficulty": result["difficulty"],
+        "classified_by": result["classified_by"],
+        "recommendation": recommendation,
     }
     try:
         with open(MS_HISTORY_PATH, "a") as f:
             f.write(json.dumps(rec) + "\n")
     except OSError:
         pass  # best-effort, never blocks the actual rank response
+
+
+MS_FEEDBACK_PATH = _ms_settings.home / "task_feedback.jsonl"
+
+
+def _log_task_finder_feedback(result_id: str, vote: str, client_id: str) -> dict:
+    """Thumbs up/down on one specific Task Finder result. Uniquely identified
+    by (result_id, client_id, timestamp) — result_id ties it back to the
+    exact recommendation shown (see _log_task_finder_history), client_id is
+    the same anonymous per-browser id the rest of the app uses (CLIENT_ID in
+    index.html, sent as X-Quindral-Client-Id — no accounts system, so this is
+    the same "who" concept as everywhere else in Quindral, not a new one)."""
+    rec = {"timestamp": time.time(), "result_id": result_id, "vote": vote, "client_id": client_id}
+    with open(MS_FEEDBACK_PATH, "a") as f:
+        f.write(json.dumps(rec) + "\n")
+    return rec
 
 
 def _read_task_finder_history(limit: int = 20) -> list[dict]:
@@ -173,19 +206,95 @@ def _task_finder_samples(category: str, difficulty: str) -> list[dict]:
     ]
 
 
-def _attach_release_dates(candidates: list[dict]) -> None:
-    """Tags each candidate with `released` (the date OpenAI's /v1/models API
-    first listed it) when known. This is NOT a training-data knowledge
-    cutoff — no discovery source this scrapes exposes that (checked: the
-    models index page lists no cutoff dates at all) — labeled as "Released"
-    everywhere it's shown, not "Knowledge cutoff", so it isn't misrepresented
-    as something more precise than it is."""
+# OpenAI id patterns that carry real web-search access even though they sit
+# in the "reasoning" category, not "deep_research" (e.g. gpt-4o-search-preview)
+# — used only to annotate search_grounding honestly, not to change routing.
+_OPENAI_WEB_SEARCH_ID_RE = re.compile(r"search-preview|deep-research")
+
+
+def _attach_model_card(candidates: list[dict]) -> None:
+    """Tags each candidate with what model-selector's catalog actually knows
+    about it beyond price/pass-rate, honestly reflecting that OpenAI's and
+    Google's docs expose different things:
+    - `released`: OpenAI's /v1/models "first listed" date, or Google's own
+      "Latest update" field (the closest per-provider analogue — neither is
+      a training cutoff) — whichever this candidate's provider has.
+    - `knowledge_cutoff`: Google and Anthropic's docs both publish this per-
+      model (Anthropic's overview table even splits it into "reliable" vs.
+      "training data" cutoff — the reliable one is used here); OpenAI's
+      don't (see gemini.py/claude.py module docstrings) — None for OpenAI
+      candidates rather than a fabricated guess.
+    - `search_grounding`: real for Google (its own "Search grounding"
+      capability field); inferred for OpenAI from category/id (deep_research
+      category models and *-search-preview ids genuinely get a live
+      web_search tool wired in providers.js/adapters.py); unknown for
+      Anthropic (its overview table doesn't list a web-search capability
+      column at all — left False rather than guessed, same "absent data,
+      not a false claim" policy as Gemini's Deep Research agent pages).
+    - `description`: short catalog label, from whichever provider's docs.
+    This catalog is much thinner than Quindral's own 17-model registry (no
+    region here) — this is the ceiling of what's available across OpenAI
+    (~150 models), Google (~50 models), and Anthropic (4 current models)."""
     for c in candidates:
+        provider = c.get("provider", "openai")
         row = _ms_store.db.execute(
-            "SELECT extra FROM models WHERE provider='openai' AND model_id=?", (c["model_id"],)
+            "SELECT description, extra FROM models WHERE provider=? AND model_id=?", (provider, c["model_id"])
         ).fetchone()
         extra = json.loads(row["extra"]) if row and row["extra"] else {}
-        c["released"] = extra.get("api_created")
+        c["description"] = (row["description"] if row else None) or None
+        if provider == "google":
+            c["released"] = extra.get("latest_update")
+            c["knowledge_cutoff"] = extra.get("knowledge_cutoff")
+            c["search_grounding"] = bool(extra.get("search_grounding"))
+        elif provider == "anthropic":
+            c["released"] = None  # no "first listed"/"latest update" field on Anthropic's overview page
+            c["knowledge_cutoff"] = extra.get("reliable_knowledge_cutoff")
+            c["search_grounding"] = False  # not published on this page — absence of data, not "unsupported"
+        else:
+            c["released"] = extra.get("api_created")
+            c["knowledge_cutoff"] = None
+            c["search_grounding"] = bool(
+                c.get("category") == "deep_research" or _OPENAI_WEB_SEARCH_ID_RE.search(c["model_id"]))
+
+
+MS_PROVIDERS = ("openai", "google", "anthropic")
+
+
+def _combined_rank(task: "MSTaskSpec") -> dict:
+    """Ranks across every provider model-selector knows about, not just
+    OpenAI — this is the "clever enough to figure it out" piece: a task that
+    needs live/current information (routed to the deep_research category by
+    taxonomy.py's recency keywords) is only useful on a model that can
+    actually reach the live web. OpenAI candidates qualify by construction
+    (being in the deep_research category on the OpenAI side already implies
+    the adapter wires in a real web_search tool, see providers.js) — every
+    other provider is filtered by its own `search_grounding` flag, which is
+    real+verified for Google and unpublished (defaults False, never assumed
+    True) for Anthropic; a candidate without it is excluded outright for a
+    deep_research task rather than shown as a false option that would just
+    hallucinate.
+    This is a heuristic, not a full capability-requirements engine — if
+    real usage shows it guessing wrong often enough, the next step is an
+    explicit per-category capability-requirements table (or a user-facing
+    "what does this task need" checklist) rather than more keyword tuning."""
+    per_provider = {p: ms_rank(_ms_store, task, provider=p) for p in MS_PROVIDERS}
+    base = per_provider["openai"]  # classify() doesn't depend on provider; any provider's category/difficulty is representative
+    combined: list[dict] = []
+    for provider, r in per_provider.items():
+        for c in r.candidates:
+            d = asdict(c)
+            d["provider"] = provider
+            combined.append(d)
+    _attach_model_card(combined)
+    if base.category == "deep_research":
+        combined = [d for d in combined if d["provider"] == "openai" or d["search_grounding"]]
+    combined.sort(key=lambda d: (d["est_cost_per_call"] is None, d["est_cost_per_call"] or 0))
+    rec = next((d for d in combined if d.get("meets_bar")), None)
+    unprobed = sorted({m for r in per_provider.values() for m in r.unprobed})
+    return {
+        "category": base.category, "difficulty": base.difficulty, "classified_by": base.classified_by,
+        "candidates": combined, "recommendation": rec, "unprobed": unprobed,
+    }
 
 # Shared-secret for the evaluator's bulk-pull access to /outcomes — there's no
 # real accounts/auth system yet, so this is the simplest thing that isn't
@@ -328,6 +437,8 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_model_selector_rank()
         elif self.path == "/model-selector/trial":
             self._handle_model_selector_trial()
+        elif self.path == "/model-selector/feedback":
+            self._handle_model_selector_feedback()
         else:
             self._send(404, {"error": "not found"})
 
@@ -492,14 +603,12 @@ class Handler(BaseHTTPRequestHandler):
             difficulty=body.get("difficulty") or None,
         )
         try:
-            ranking = ms_rank(_ms_store, task)
+            result = _combined_rank(task)
         except Exception as e:
             self._send(500, {"error": f"model-selector rank failed: {e}"})
             return
-        _log_task_finder_history(task, ranking)
-        result = ranking_to_dict(ranking)
-        _attach_release_dates(result["candidates"])
-        result["samples"] = _task_finder_samples(ranking.category, ranking.difficulty)
+        _log_task_finder_history(task, result)
+        result["samples"] = _task_finder_samples(result["category"], result["difficulty"])
         self._send(200, result)
 
     def _handle_model_selector_trial(self):
@@ -539,23 +648,48 @@ class Handler(BaseHTTPRequestHandler):
         )
         max_models = max(1, min(int(body.get("max_models", 3)), 5))
         try:
-            ranking = ms_rank(_ms_store, task)
+            # Trial only calls real OpenAI models (no Gemini execution
+            # adapter exists yet — see providers.js/adapters.py, OpenAI-only)
+            # so the cascade itself stays OpenAI-scoped, cheapest-first
+            # within that provider only.
+            ranking = ms_rank(_ms_store, task, provider="openai")
             runner = ProbeRunner(_ms_store, _ms_settings, log=lambda *_: None)
             outcomes = ms_trial(_ms_store, runner, ranking, rubric=rubric, expect=expect, max_models=max_models)
-            # Re-rank: the trial just wrote fresh probe evidence for this exact
-            # task (suite "custom:<hash>"), which ranker.rank() prioritizes
-            # over generic suite evidence for the same description — this is
-            # what makes the recommendation reflect what was just verified.
-            updated = ms_rank(_ms_store, task)
+            # Re-rank across ALL providers after the trial: the trial just
+            # wrote fresh OpenAI probe evidence for this exact task (suite
+            # "custom:<hash>"), which ranker.rank() prioritizes over generic
+            # suite evidence — but the displayed comparison still includes
+            # Gemini candidates (untested by this trial, shown as such).
+            result = _combined_rank(task)
         except Exception as e:
             self._send(500, {"error": f"model-selector trial failed: {e}"})
             return
-        _log_task_finder_history(task, updated)
-        result = ranking_to_dict(updated)
-        _attach_release_dates(result["candidates"])
-        result["samples"] = _task_finder_samples(updated.category, updated.difficulty)
+        _log_task_finder_history(task, result)
+        result["samples"] = _task_finder_samples(result["category"], result["difficulty"])
         result["trial_outcomes"] = [asdict(o) for o in outcomes]
         self._send(200, result)
+
+    def _handle_model_selector_feedback(self):
+        """Thumbs up/down on one Task Finder result (was this recommendation
+        actually right?). No accounts system, so identity is the same
+        anonymous per-browser client id used everywhere else in this app
+        (X-Quindral-Client-Id), same pattern as /feedback's routing votes."""
+        try:
+            body = self._read_json_body()
+        except json.JSONDecodeError:
+            self._send(400, {"error": "invalid JSON body"})
+            return
+        result_id = body.get("result_id")
+        vote = body.get("vote")
+        client_id = body.get("client_id") or self.headers.get("X-Quindral-Client-Id")
+        if not result_id or vote not in ("up", "down"):
+            self._send(400, {"error": "'result_id' and 'vote' ('up' or 'down') are required"})
+            return
+        if not client_id:
+            self._send(400, {"error": "'client_id' is required (or X-Quindral-Client-Id header)"})
+            return
+        record = _log_task_finder_feedback(result_id, vote, client_id)
+        self._send(200, record)
 
     def _handle_judge(self):
         """Offline evaluator writes verdicts here — admin-token required.

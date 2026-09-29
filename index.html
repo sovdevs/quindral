@@ -645,10 +645,11 @@
         file size instead of a generic guess.
       </p>
       <p class="settings-sub" style="font-size:0.85rem;">
-        <b>Test with sample</b> (real cost) — actually calls real models with your sample, cheapest
-        first, stopping at the first one that passes your rubric. This is live inference — it costs
-        real API money on the server's own key (never your BYOK key, which never reaches this
-        server). Requires a sample input and a rubric.
+        <b>Test with sample</b> (real cost) — actually calls real OpenAI models with your sample,
+        cheapest first, stopping at the first one that passes your rubric. This is live inference —
+        it costs real API money on the server's own key (never your BYOK key, which never reaches
+        this server). Requires a sample input and a rubric. Google/Gemini models aren't callable
+        this way yet (no execution adapter built) — they only appear in the free cost comparison.
       </p>
       <p class="settings-sub" style="font-size:0.85rem;">
         <b>What backs a pass rate:</b> every category has a fixed suite of test prompts
@@ -658,10 +659,28 @@
         the actual prompts and judge them yourself.
       </p>
       <p class="settings-sub" style="font-size:0.85rem;">
-        <b>Known limits:</b> OpenAI only today (no Claude/Google/OpenRouter yet). "Released" is when
-        a model was added to OpenAI's API, not its training-data knowledge cutoff — that isn't
-        published anywhere this tool can read. Empty results mean the local catalog hasn't been
-        populated yet (<code>model-selector discover</code> + probes are run manually, not automatically).
+        <b>Three providers, different transparency:</b> OpenAI, Google (Gemini), and Anthropic
+        (Claude) are all compared on cost. Google's docs publish a real per-model Knowledge cutoff,
+        Latest-update date, and Search-grounding capability (whether it can ground answers in live
+        Google Search); Anthropic's overview page publishes a real Knowledge cutoff too (and a
+        separate, broader training-data cutoff) but no web-search capability field; OpenAI's docs
+        publish neither cutoff nor a capability list at all. Missing fields show "—" rather than a
+        guess. A task that needs current information (e.g. "this week", "latest") is automatically
+        routed to only consider models that can actually search live — non-OpenAI candidates without
+        verified Search grounding are excluded outright for such tasks, not just penalized (today
+        that means Claude and most Gemini models don't appear for recency-type questions, since
+        neither publishes a "yes" for grounding beyond Gemini's own flagged models).
+      </p>
+      <p class="settings-sub" style="font-size:0.85rem;">
+        <b>Known limits:</b> OpenAI, Google, and Anthropic only today (no OpenRouter yet). Anthropic
+        only covers its 4 current-lineup models — older "legacy" Claude models aren't included since
+        guessing their API id from a display name risks a wrong id failing silently. "Released" is
+        OpenAI's API-listing date or Google's "Latest update" — neither is a true training-data
+        cutoff for OpenAI (Google's and Anthropic's ARE real cutoffs). The current-info/search-
+        grounding routing is a keyword heuristic, not a full capability-requirements engine — if it
+        guesses wrong often, a more explicit per-task capability checklist is the next step. Empty
+        results mean the local catalog hasn't been populated yet (<code>model-selector discover</code>
+        + probes are run manually, not automatically).
       </p>
     </div>
   </div>
@@ -1133,6 +1152,22 @@ function renderQueryInputState() {
     unlockHint.textContent = `Try ${remaining} more preset${remaining === 1 ? "" : "s"} to unlock typing your own query.`;
   }
 }
+
+// Task Finder only estimates/tests cheapest-that-works — it doesn't execute
+// against your own BYOK key. Rather than duplicate the whole BYOK execution
+// path here, this just hands the task off to the real Chat tool that already
+// has it: switches view and drops the description into the free-text query
+// box. If the recommended model has no key configured, the existing "Run on
+// this model" affordance simply won't appear there (see runRow's existing
+// credential check) — that's the natural "fails gracefully without a key"
+// behavior already built, not something new to construct here.
+function runTaskInChat(description) {
+  localStorage.setItem(FREETEXT_UNLOCKED_KEY, "1");
+  renderQueryInputState();
+  queryText.value = description;
+  showView("chat");
+  queryText.focus();
+}
 renderQueryInputState();
 
 // ---------- demo balance (fictional — no real payment wired up yet) ----------
@@ -1296,11 +1331,16 @@ function renderTaskFinderSamples(samples) {
     `<div style="margin-top:0.4rem;">${items}</div></details>`;
 }
 
+function providerLabel(p) {
+  return p === "google" ? "Google" : p === "anthropic" ? "Anthropic" : "OpenAI";
+}
+
 function renderTaskFinderResult(data) {
   const el = document.getElementById("tfResult");
   const rec = data.recommendation;
+  const diffNote = data.classified_by === "user" ? "" : " (auto-detected default — override it above if wrong)";
   const header = `<p class="settings-sub">Category: <b>${escapeHtml(data.category)}</b>` +
-    ` (${escapeHtml(data.classified_by)}) · Difficulty: <b>${escapeHtml(data.difficulty)}</b></p>`;
+    ` (${escapeHtml(data.classified_by)}) · Task difficulty: <b>${escapeHtml(data.difficulty)}</b>${diffNote}</p>`;
   if (!data.candidates || data.candidates.length === 0) {
     el.innerHTML = header + `<p class="settings-sub">No models found for this category yet — ` +
       `the local catalog is empty until <code>model-selector discover</code> (and probes) have been ` +
@@ -1314,28 +1354,83 @@ function renderTaskFinderResult(data) {
   const rows = top5DescCost.map(c => {
     const cost = c.est_cost_per_call != null ? `$${c.est_cost_per_call.toFixed(5)}` : "—";
     const pass = c.pass_rate != null ? `${Math.round(c.pass_rate * 100)}% (n=${c.n_probes})` : "unprobed";
-    const isRec = rec && c.model_id === rec.model_id && c.effort === rec.effort;
+    const isRec = rec && c.model_id === rec.model_id && c.effort === rec.effort && c.provider === rec.provider;
     const released = c.released || "—";
+    const cutoff = c.knowledge_cutoff || "—";
+    const grounding = c.search_grounding ? "🔎 yes" : "no";
+    const description = c.description || "—";
+    const latency = c.avg_latency_s != null ? `${c.avg_latency_s.toFixed(1)}s` : "—";
+    const provider = providerLabel(c.provider);
     return `<tr${isRec ? ' style="font-weight:600;"' : ''}>` +
       `<td>${isRec ? "✅ " : ""}${escapeHtml(c.model_id)}</td>` +
+      `<td style="font-size:0.78rem; opacity:0.8;">${escapeHtml(provider)}</td>` +
+      `<td style="font-size:0.78rem; opacity:0.8;">${escapeHtml(description)}</td>` +
       `<td>${escapeHtml(c.effort || "—")}</td>` +
-      `<td>${cost}</td><td>${pass}</td>` +
+      `<td>${cost}</td><td>${pass}</td><td>${latency}</td>` +
       `<td>${escapeHtml(released)}</td>` +
+      `<td>${escapeHtml(cutoff)}</td>` +
+      `<td>${grounding}</td>` +
       `<td>${escapeHtml((c.notes || []).join("; "))}</td></tr>`;
   }).join("");
+  const feedbackHtml = data.result_id ? `<span style="margin-left:0.8rem;">` +
+    `<button class="thumb-btn" data-tf-vote="up" title="Good recommendation">👍</button>` +
+    `<button class="thumb-btn" data-tf-vote="down" title="Bad recommendation">👎</button>` +
+    `<span id="tfFeedbackSent" style="font-size:0.78rem; opacity:0.7; margin-left:0.3rem;"></span></span>` : "";
+  // Only OpenAI models are runnable from Chat today (BYOK execution is
+  // OpenAI-only, same limit as the trial button above) — offering this for
+  // a non-OpenAI recommendation would just be a dead affordance once in Chat.
+  const runHtml = rec && rec.provider === "openai"
+    ? `<button class="sidebar-nav-btn" id="tfRunInChatBtn" style="margin-left:0.8rem; display:inline-flex; width:auto;">▶ Run in Chat</button>` : "";
   el.innerHTML = header +
-    (rec ? `<p class="settings-sub">Recommendation: <b>${escapeHtml(rec.model_id)}</b> — cheapest model ` +
-      `that meets the pass-rate bar for this difficulty.</p>` :
+    (rec ? `<p class="settings-sub">Recommendation: <b>${escapeHtml(rec.model_id)}</b> (${providerLabel(rec.provider)}) — cheapest model ` +
+      `that meets the pass-rate bar for this difficulty.${feedbackHtml}${runHtml}</p>` :
       `<p class="settings-sub">No candidate has enough probe evidence to clear the pass-rate bar yet — ` +
-      `showing candidates by cost only.</p>`) +
-    `<p class="settings-sub" style="font-size:0.78rem;">Top 5 cheapest candidates, most expensive of the five first. ` +
-    `"Released" is when OpenAI's API first listed the model — not its training-data knowledge cutoff, which isn't ` +
-    `publicly exposed anywhere this tool can scrape.</p>` +
+      `showing candidates by cost only.${feedbackHtml}</p>`) +
+    `<p class="settings-sub" style="font-size:0.78rem;">Top 5 cheapest candidates across OpenAI, Google, and Anthropic, most ` +
+    `expensive of the five first. "Released" is OpenAI's API-listing date, or Google's own "Latest update" field. ` +
+    `"Knowledge cutoff" is published by Google's and Anthropic's docs — OpenAI exposes no such field anywhere, shown ` +
+    `honestly as "—" rather than guessed. "🔎" marks models that can ground answers in live search (verified for ` +
+    `Google; inferred for OpenAI's deep-research/search-preview models; not published by Anthropic's docs, so ` +
+    `defaults to no rather than assumed). A task needing current info (e.g. "this week", ` +
+    `"latest") is auto-routed to only consider models that can actually search live. "Latency" is the average ` +
+    `measured across probes, where any exist.</p>` +
+    `<div style="overflow-x:auto;">` +
     `<table style="width:100%; border-collapse:collapse; font-size:0.85rem;">` +
-    `<thead><tr><th align="left">Model</th><th align="left">Effort</th>` +
-    `<th align="left">Est. cost/call</th><th align="left">Pass rate</th><th align="left">Released</th>` +
-    `<th align="left">Notes</th></tr></thead>` +
-    `<tbody>${rows}</tbody></table>` + renderTaskFinderSamples(data.samples);
+    `<thead><tr><th align="left">Model</th><th align="left">Provider</th><th align="left">Description</th>` +
+    `<th align="left">Effort</th><th align="left">Est. cost/call</th><th align="left">Pass rate</th>` +
+    `<th align="left">Latency</th><th align="left">Released</th><th align="left">Knowledge cutoff</th>` +
+    `<th align="left">Search</th><th align="left">Notes</th></tr></thead>` +
+    `<tbody>${rows}</tbody></table></div>` + renderTaskFinderSamples(data.samples);
+  wireTaskFinderFeedback(data.result_id);
+}
+
+// Thumbs up/down on one specific result — tied to the server-minted
+// result_id (unique per rank/trial call) plus this browser's CLIENT_ID and
+// a timestamp, same anonymous-identity pattern as the main app's routing
+// votes (see getClientId() above). No accounts system, so "who voted" is
+// scoped to a browser, not a person.
+function wireTaskFinderFeedback(resultId) {
+  const runBtn = document.getElementById("tfRunInChatBtn");
+  if (runBtn) {
+    runBtn.addEventListener("click", () => {
+      runTaskInChat(document.getElementById("tfDescription").value.trim());
+    });
+  }
+  if (!resultId) return;
+  document.querySelectorAll("[data-tf-vote]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const vote = btn.dataset.tfVote;
+      const sentEl = document.getElementById("tfFeedbackSent");
+      try {
+        const res = await fetch("/model-selector/feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ result_id: resultId, vote, client_id: CLIENT_ID }),
+        });
+        if (res.ok && sentEl) sentEl.textContent = vote === "up" ? "Thanks!" : "Noted, thanks.";
+      } catch (e) { if (sentEl) sentEl.textContent = "Failed to send."; }
+    });
+  });
 }
 
 // ---------- Task Finder history ("previously selected" tasks) ----------
@@ -1374,7 +1469,8 @@ async function renderTaskFinderHistory() {
 
 document.getElementById("tfWhatsThisLink").addEventListener("click", (ev) => {
   ev.preventDefault();
-  document.getElementById("tfWhatsThisPopup").style.display = "block";
+  const popup = document.getElementById("tfWhatsThisPopup");
+  popup.style.display = popup.style.display === "block" ? "none" : "block";
 });
 document.getElementById("tfWhatsThisClose").addEventListener("click", (ev) => {
   ev.preventDefault();

@@ -104,14 +104,72 @@ def category_for_id(model_id: str) -> str:
     return "other"
 
 
+GEMINI_ID_PATTERNS: list[tuple[str, str]] = [
+    (r"deep-research", "deep_research"),
+    (r"embedding", "embeddings"),
+    (r"(^|-)tts", "tts"),
+    (r"live-translate", "realtime_translation"),
+    (r"transcribe", "transcription"),
+    (r"(live|robotics-er)", "realtime_voice"),
+    (r"(image|nano-banana|imagen)", "image_generation"),
+    (r"computer-use", "coding"),
+    (r"^(gemini|antigravity)", "reasoning"),
+]
+
+
+def category_for_gemini_id(model_id: str) -> str:
+    """Same idea as category_for_id but for Gemini's id conventions
+    (gemini-*, lyria-*, veo-*, antigravity-*, deep-research-*) — OpenAI's
+    ID_PATTERNS assumes gpt-/o-prefixed ids and wouldn't match any of these."""
+    mid = model_id.lower()
+    for pat, cat in GEMINI_ID_PATTERNS:
+        if re.search(pat, mid):
+            return cat
+    return "other"
+
+
+# Same signal as Quindral's own classifier.py's needs_current_info (kept as
+# a separate copy, not an import — model-selector is meant to work as a
+# standalone package, see HANDOFF.md — but this is the exact same pattern,
+# proven against real cases in classifier.py's self-check). Word-boundary
+# regex catches "recent"/"recently" etc. as ordinary words anywhere in the
+# sentence; an earlier version of this used exact literal phrases ("this
+# week", "died this") in the deep_research category's own keyword tuple,
+# which missed "recent celebrity deaths in the news" entirely (zero keyword
+# hits on any category) and silently fell back to "reasoning" — a category
+# with no web-search capability at all, hence Gemini never appearing and a
+# cheap non-searching model getting recommended for a question it can't
+# actually answer correctly.
+_CURRENT_INFO_PATTERN = re.compile(
+    r"\b(today|tonight|currently|current|right now|as of|this week|this month|this year|"
+    r"latest|breaking|recent(ly)?|up[- ]to[- ]date|"
+    r"who (is|are) the (current|latest)|who won|who is winning|"
+    r"stock price|exchange rate|weather (in|today|right now)|"
+    r"score of|live score|"
+    r"20[2-9]\d)\b",
+    re.I,
+)
+
+
+def needs_current_info(text: str) -> bool:
+    return bool(_CURRENT_INFO_PATTERN.search(text))
+
+
 def classify_task_heuristic(text: str) -> list[tuple[str, int]]:
     """Score categories by keyword hits. Returns [(category, score)] sorted desc."""
     t = text.lower()
-    scores = []
+    scores = {}
     for c in CATEGORIES.values():
         s = sum(1 for k in c.keywords if k in t)
         if s:
-            scores.append((c.key, s))
+            scores[c.key] = s
+    if needs_current_info(text):
+        # Boosted, not force-set: an unambiguous format request ("generate an
+        # image of today's weather map") should still win on its own
+        # keywords rather than being overridden just because it mentions
+        # "today" — this only decides ties / the all-zero fallback case.
+        scores["deep_research"] = scores.get("deep_research", 0) + 2
+    out = list(scores.items())
     # more specific categories win ties over generic reasoning
-    scores.sort(key=lambda x: (-x[1], x[0] == "reasoning"))
-    return scores
+    out.sort(key=lambda x: (-x[1], x[0] == "reasoning"))
+    return out

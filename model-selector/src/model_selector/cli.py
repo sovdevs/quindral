@@ -66,8 +66,23 @@ def main(argv: list[str] | None = None) -> int:
     store = Store(s.db_path)
 
     if a.cmd == "discover":
-        from .discovery import OpenAIDiscovery
-        rep = store.ingest(OpenAIDiscovery(s, use_api=not a.no_api).run())
+        from .discovery import OpenAIDiscovery, GeminiDiscovery, ClaudeDiscovery
+        rep = {
+            "openai": store.ingest(OpenAIDiscovery(s, use_api=not a.no_api).run()),
+            # No API key needed for Gemini — model list, capabilities
+            # (including Search grounding) and Knowledge cutoff/Latest update
+            # come straight from Google's public per-model docs pages, which
+            # OpenAI's equivalent docs simply don't expose (see gemini.py's
+            # module docstring).
+            "google": store.ingest(GeminiDiscovery(s).run()),
+            # Also no API key needed — Anthropic's overview page publishes a
+            # clean comparison table with real pricing + BOTH a "reliable"
+            # and "training data" knowledge cutoff per current model (see
+            # claude.py's module docstring). Only the current lineup (4
+            # models at time of writing) is captured — legacy model API ids
+            # aren't guessed from their display names.
+            "anthropic": store.ingest(ClaudeDiscovery(s).run()),
+        }
         print(json.dumps(rep, indent=2))
         return 0
 
