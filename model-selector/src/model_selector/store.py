@@ -117,6 +117,26 @@ class Store:
             q += " AND status='active'"
         return self.db.execute(q + " ORDER BY category, model_id", a).fetchall()
 
+    def lookup(self, model_id: str) -> dict[str, Any]:
+        """Everything we have on a model id (any provider): metadata, current prices, and when
+        we last saw it listed / last fetched its provider's pricing. Unknown id -> close matches."""
+        import difflib
+        rows = self.db.execute("SELECT * FROM models WHERE model_id=? COLLATE NOCASE", (model_id,)).fetchall()
+        if not rows:
+            ids = [r[0] for r in self.db.execute("SELECT DISTINCT model_id FROM models")]
+            return {"found": False, "model_id": model_id,
+                    "suggestions": difflib.get_close_matches(model_id, ids, n=5, cutoff=0.5)}
+        out = []
+        for m in rows:
+            d = dict(m)
+            d["extra"] = json.loads(d["extra"] or "{}")
+            d["prices"] = rows_to_dicts(self.current_prices(m["provider"], m["model_id"]))
+            snap = self.db.execute("SELECT MAX(fetched_at) FROM snapshots WHERE provider=?",
+                                   (m["provider"],)).fetchone()[0]
+            d["last_checked"] = max(filter(None, [m["last_seen"], snap]))  # ISO UTC strings sort correctly
+            out.append(d)
+        return {"found": True, "model_id": rows[0]["model_id"], "matches": out}
+
     def set_category(self, provider: str, model_id: str, category: str) -> None:
         self.db.execute("UPDATE models SET category=?, category_locked=1 WHERE provider=? AND model_id=?",
                         (category, provider, model_id))

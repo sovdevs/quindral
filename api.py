@@ -363,6 +363,10 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_list_outcomes()
         elif path == "/model-selector/categories":
             self._send(200, {"categories": [{"key": k, "label": c.label} for k, c in MS_CATEGORIES.items()]})
+        elif path == "/model-selector/model":
+            mid = parse_qs(urlsplit(self.path).query).get("id", [""])[0]
+            res = _ms_store.lookup(mid) if mid else {"error": "'id' query param is required"}
+            self._send(200 if res.get("found") else 404 if mid else 400, res)
         elif path == "/model-selector/history":
             limit = int(parse_qs(urlsplit(self.path).query).get("limit", ["20"])[0])
             self._send(200, {"tasks": _read_task_finder_history(limit)})

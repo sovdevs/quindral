@@ -55,6 +55,9 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--rubric"); r.add_argument("--expect")
     r.add_argument("--json", action="store_true")
 
+    sh = sub.add_parser("show", help="price + metadata + last-checked time for one model id")
+    sh.add_argument("model_id"); sh.add_argument("--json", action="store_true")
+
     sc = sub.add_parser("set-category"); sc.add_argument("model_id"); sc.add_argument("category")
 
     a = ap.parse_args(argv)
@@ -156,6 +159,20 @@ def main(argv: list[str] | None = None) -> int:
         elif res.unprobed:
             print(f"\nno evidence yet — probe: model-selector probe <suite> --models {' '.join(res.unprobed[:6])}")
         return 0
+
+    if a.cmd == "show":
+        res = store.lookup(a.model_id)
+        if a.json:
+            print(json.dumps(res, indent=2))
+        elif not res["found"]:
+            print(f"no data for '{a.model_id}'" + (f" — did you mean: {', '.join(res['suggestions'])}?"
+                                                  if res["suggestions"] else ""))
+        else:
+            for m in res["matches"]:
+                print(f"{m['provider']}/{m['model_id']}  [{m['category']}]  status={m['status']}")
+                print(f"  last checked: {m['last_checked']}  (first seen {m['first_seen']})")
+                print(_table(m["prices"], ["tier", "modality", "input", "cached_input", "output", "per_unit", "unit"]))
+        return 0 if res["found"] else 1
 
     if a.cmd == "set-category":
         store.set_category("openai", a.model_id, a.category)

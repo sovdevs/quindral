@@ -112,8 +112,10 @@ def parse_model_detail(model_id: str, html: str) -> tuple[ModelRecord, dict]:
     return rec, {"input_token_limit": in_tok, "output_token_limit": out_tok}
 
 
-_PRICE_ROW = re.compile(r"\|\s*(Input price|Output price[^|]*)\s*\|\s*([^|]*)\|\s*([^|]*)\|")
+_PRICE_ROW = re.compile(r"\|\s*((?:Text )?[Ii]nput price[^|]*|Output price[^|]*)\|\s*([^|]*)\|\s*([^|]*)\|")
+_ANY_ROW = re.compile(r"\|\s*([^|\n]+?)\s*\|\s*([^|\n]*)\|\s*(\$[^|\n]*)\|")
 _DOLLAR = re.compile(r"\$\s*([0-9][0-9,]*\.?[0-9]*)")
+_BACKTICK_ID = re.compile(r"`([a-z0-9][a-z0-9.\-]+)`")
 
 
 def parse_pricing(pricing_html: str, model_ids: set[str]) -> list[PriceRecord]:
@@ -124,24 +126,45 @@ def parse_pricing(pricing_html: str, model_ids: set[str]) -> list[PriceRecord]:
     the future one). Deliberately narrower than OpenAI's parser: doesn't
     capture Batch/Flex/Priority tiers or the separate Search-grounding
     per-request fee, both real gaps left for a follow-up rather than
-    guessed at."""
+    guessed at.
+
+    Sections are matched to catalog ids via the exact API ids the page lists
+    in backticks under each heading (headings are display names and don't
+    always slugify to the id, e.g. "Gemini Omni Flash" vs gemini-omni-1.1-flash);
+    the slugified heading is only a fallback. Per-token rows (incl. embeddings'
+    "Text input price") fill input/output; Veo (per second) and Lyria (per song)
+    rows are matched to ids by their row label and stored as per_unit."""
     text = _to_markdown(pricing_html)
     sections = re.split(r"\n([A-Z][A-Za-z0-9 .\-]+)\n-{3,}\n", text)
     out: list[PriceRecord] = []
     # re.split with a capturing group interleaves [pre, heading, body, heading, body, ...]
     for i in range(1, len(sections) - 1, 2):
         heading, body = sections[i], sections[i + 1]
-        mid = _slugify_heading(heading)
-        if mid not in model_ids:
+        ids = [x for x in _BACKTICK_ID.findall(body[:body.find("\n\n", 3) if "\n\n" in body[3:] else 400])
+               if x in model_ids] or ([_slugify_heading(heading)] if _slugify_heading(heading) in model_ids else [])
+        if not ids:
             continue
         standard = body.split("### Batch")[0].split("### Flex")[0]
-        rows = {m.group(1).strip(): m.group(3).strip() for m in _PRICE_ROW.finditer(standard)}
-        in_price = _first_dollar(rows.get("Input price"))
-        out_price = _first_dollar(rows.get("Output price (including thinking tokens)")) or _first_dollar(rows.get("Output price"))
-        if in_price is None and out_price is None:
+        rows: dict[str, str] = {}
+        for m in _PRICE_ROW.finditer(standard):
+            rows.setdefault(m.group(1).strip(), m.group(3).strip())  # first wins (Robotics lists two)
+        in_price = _first_dollar(next((v for k, v in rows.items() if k.endswith("input price") or k.startswith("Input price")), None))
+        out_price = _first_dollar(next((v for k, v in rows.items() if k.startswith("Output price")), None))
+        if in_price is not None or out_price is not None:
+            out += [PriceRecord(mid, PROVIDER, tier="Standard", input=in_price, output=out_price,
+                                section="Standard (current, paid tier)") for mid in ids]
             continue
-        out.append(PriceRecord(mid, PROVIDER, tier="Standard", input=in_price, output=out_price,
-                               section="Standard (current, paid tier)"))
+        # Per-second (Veo) / per-song (Lyria): "<label> | free | $x ..." — match label to an id.
+        unit = "second" if "per second" in standard else "song" if "per request" in standard else None
+        for m in _ANY_ROW.finditer(standard):
+            words = set(re.sub(r"\(.*?\)|video with audio price|price", "", m.group(1)).lower().split()) - {"standard"}
+            variants = {"fast", "lite", "clip", "pro"}
+            mid = next((x for x in ids if all(w in x for w in words)
+                        and not any(v in x and v not in words for v in variants)), None)
+            val = _first_dollar(m.group(3))
+            if mid and unit and val is not None:
+                out.append(PriceRecord(mid, PROVIDER, tier="Standard", per_unit=val, unit=unit,
+                                       section="Standard (current, paid tier)"))
     return out
 
 
